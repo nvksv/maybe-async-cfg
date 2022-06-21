@@ -1,6 +1,6 @@
 [package]
 name = "maybe-async-cfg"
-version = "0.1.0"
+version = "0.1.1"
 authors = [ "Sergey V. Kokorin <nvksv@nvksv.ru>" ]
 edition = "2021"
 readme = "README.md"
