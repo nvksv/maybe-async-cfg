@@ -1,0 +1,10 @@
+error[E0428]: the name `test_async_fn_async` is defined multiple times
+  --> tests/ui/test_fail/03-async-gt2.rs:16:1
+   |
+16 | async fn test_async_fn() {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | `test_async_fn_async` redefined here
+   | previous definition of the value `test_async_fn_async` here
+   |
+   = note: `test_async_fn_async` must be defined only once in the value namespace of this module

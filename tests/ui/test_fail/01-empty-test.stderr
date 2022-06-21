@@ -1,0 +1,5 @@
+error[E0425]: cannot find function `async_fn_async` in this scope
+  --> tests/ui/test_fail/01-empty-test.rs:14:15
+   |
+14 |     let res = async_fn().await;
+   |               ^^^^^^^^ not found in this scope
