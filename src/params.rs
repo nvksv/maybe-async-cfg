@@ -49,6 +49,8 @@ pub struct MacroParameterAction {
 pub struct MacroParameters {
     disable: bool,
     key: Option<String>,
+    self_name: Option<String>,
+    original_self_name: Option<String>,
     // settings
     prefix: Option<String>,
     idents: HashMap<String, IdentRecord>,
@@ -104,11 +106,11 @@ impl MacroParameters {
                             .to_string();
                         match name.as_str() {
                             "key" => lit_str!(lit, builder, key, "Expected string literal"),
+                            "self" => lit_str!(lit, builder, self_name, "Expected string literal"),
+                            "__original_self" => lit_str!(lit, builder, original_self_name, "Expected string literal"),
                             "prefix" => lit_str!(lit, builder, prefix, "Expected string literal"),
                             "send" => lit_str!(lit, builder, send, "Expected string literal"),
-                            "feature" => {
-                                lit_meta!(lit, meta, builder, feature, "Expected string literal")
-                            }
+                            "feature" => lit_meta!(lit, meta, builder, feature, "Expected string literal"),
                             _ => {
                                 return Err(syn::Error::new_spanned(
                                     meta.to_token_stream(),
@@ -217,6 +219,14 @@ impl MacroParameters {
 
         if let Some(key) = &self.key {
             args.push(make_nestedmeta_namevalue("key", key.as_str()));
+        }
+
+        if let Some(self_name) = &self.self_name {
+            args.push(make_nestedmeta_namevalue("self", self_name.as_str()));
+        }
+
+        if let Some(original_self_name) = &self.original_self_name {
+            args.push(make_nestedmeta_namevalue("__original_self", original_self_name.as_str()));
         }
 
         if let Some(prefix) = &self.prefix {
@@ -380,19 +390,43 @@ impl MacroParameters {
         self.disable
     }
 
-    pub fn keep_self_get(&self) -> bool {
-        self.keep_self
-    }
+    // pub fn keep_self_get(&self) -> bool {
+    //     self.keep_self
+    // }
 
-    pub fn idents_add<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
-        if self.idents.get(name.as_ref()).is_none() {
-            let ir = self.default_ident_record(fn_mode);
-            self.idents.insert(name.as_ref().to_string(), ir);
-        }
-    }
+    // pub fn idents_add<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
+    //     if self.idents.get(name.as_ref()).is_none() {
+    //         let ir = self.default_ident_record(fn_mode);
+    //         self.idents.insert(name.as_ref().to_string(), ir);
+    //     }
+    // }
 
     pub fn key_get<'s>(&'s self) -> Option<&'s str> {
         self.key.as_ref().map(|s| s.as_str())
+    }
+
+    // pub fn self_name_get<'s>(&'s self) -> Option<&'s str> {
+    //     self.self_name.as_ref().map(|s| s.as_str())
+    // }
+
+    pub fn original_self_name_set<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
+        self.original_self_name = Some(name.as_ref().to_string());
+
+        if !self.keep_self {
+            if self.idents.get(name.as_ref()).is_none() {
+                let mut ir = self.default_ident_record(fn_mode);
+    
+                if let Some(key) = &self.key {
+                    if let Some(self_name) = &self.self_name {
+                        let mut idents = HashMap::new();
+                        idents.insert( key.clone(), self_name.clone() );
+                        ir.idents = Some(idents);
+                    }
+                }
+    
+                self.idents.insert(name.as_ref().to_string(), ir);
+            }
+        }
     }
 
     pub fn prefix_set(&mut self, prefix: String) {
@@ -564,6 +598,8 @@ impl MacroParametersBuilder {
             params: MacroParameters {
                 disable: false,
                 key: None,
+                self_name: None, 
+                original_self_name: None, 
                 prefix: None,
                 idents: HashMap::new(),
                 keep_self: false,
@@ -580,6 +616,16 @@ impl MacroParametersBuilder {
 
     pub fn key(&mut self, key: String) -> syn::Result<()> {
         self.params.key = Some(key);
+        Ok(())
+    }
+
+    pub fn self_name(&mut self, self_name: String) -> syn::Result<()> {
+        self.params.self_name = Some(self_name);
+        Ok(())
+    }
+
+    pub fn original_self_name(&mut self, original_self_name: String) -> syn::Result<()> {
+        self.params.original_self_name = Some(original_self_name);
         Ok(())
     }
 
