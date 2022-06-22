@@ -354,7 +354,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///                 xyzzy as xizzy_the_sync_func
 ///             }
 ///         };         
-///         let _ = baz_sync( FooSync {}, BarAsync::new() );
+///         let _ = baz_sync( FooSync {}, BarSync::new() );
 ///         let _ = xizzy_the_sync_func( QuxSync::flob() );
 ///     }
 ///     #[cfg(feature="use_async")]

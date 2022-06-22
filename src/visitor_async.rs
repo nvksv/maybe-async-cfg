@@ -367,7 +367,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         };
 
         if let Some(ir) = self.params.idents_get(ident.to_string()) {
-            *ident = ir.ident_add_suffix(ident, self.convert_mode);
+            *ident = ir.ident_add_suffix(ident, self.convert_mode, self.params.key_get());
             return Ok(());
         }
 
@@ -378,7 +378,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         let ident = &mut node.ident;
 
         if let Some(ir) = self.params.idents_get(&ident.to_string()) {
-            *ident = ir.ident_add_suffix(ident, self.convert_mode);
+            *ident = ir.ident_add_suffix(ident, self.convert_mode, self.params.key_get());
         }
 
         Ok(())
@@ -389,7 +389,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
             syn::UseTree::Path(syn::UsePath { ident, .. }) => {
                 if let Some(ir) = self.params.idents_get(&ident.to_string()) {
                     if !ir.use_mode {
-                        *ident = ir.ident_add_suffix(ident, self.convert_mode);
+                        *ident = ir.ident_add_suffix(ident, self.convert_mode, self.params.key_get());
                     }
                 }
             }
@@ -401,10 +401,10 @@ impl<'p> AsyncAwaitVisitor<'p> {
                         *node = syn::UseTree::Rename(syn::UseRename {
                             ident: ident.clone(),
                             as_token: syn::Token![as](ident.span()),
-                            rename: ir.ident_add_suffix(ident, self.convert_mode),
+                            rename: ir.ident_add_suffix(ident, self.convert_mode, self.params.key_get()),
                         });
                     } else {
-                        *ident = ir.ident_add_suffix(ident, self.convert_mode);
+                        *ident = ir.ident_add_suffix(ident, self.convert_mode, self.params.key_get());
                     }
                 }
             }

@@ -102,29 +102,39 @@ pub(crate) fn make_nestedmeta_list(
 
 pub(crate) fn make_identrecord(name: &str, ir: &IdentRecord) -> syn::NestedMeta {
     let mut nested = Punctuated::<syn::NestedMeta, syn::token::Comma>::new();
+    
     if ir.fn_mode {
         nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("fn"))));
     };
+
     if ir.use_mode {
         nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("use"))));
     };
+
     if ir.keep {
         nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("keep"))));
     };
+
     if let Some(value) = &ir.ident_async {
         if value == name {
             nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("async"))));
         } else {
             nested.push(make_nestedmeta_namevalue("async", value.as_str()));
         }
-    }
+    };
     if let Some(value) = &ir.ident_sync {
         if value == name {
             nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("sync"))));
         } else {
             nested.push(make_nestedmeta_namevalue("sync", value.as_str()));
         }
-    }
+    };
+
+    if let Some(idents) = &ir.idents {
+        for (key, value) in idents {
+            nested.push(make_nestedmeta_namevalue(key.as_str(), value.as_str()));
+        }
+    };
 
     if nested.is_empty() {
         syn::NestedMeta::Meta(syn::Meta::Path(make_path(name)))

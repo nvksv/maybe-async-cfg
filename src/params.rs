@@ -345,13 +345,7 @@ impl MacroParameters {
     }
 
     pub fn default_ident_record(&self, fn_mode: bool) -> IdentRecord {
-        IdentRecord {
-            fn_mode,
-            use_mode: false,
-            keep: false,
-            ident_sync: None,
-            ident_async: None,
-        }
+        IdentRecord::with_fn_mode( fn_mode )
     }
 
     pub fn apply_parent(child: &mut MacroParameters, parent: &MacroParameters) -> syn::Result<()> {
@@ -495,12 +489,43 @@ pub struct IdentRecord {
     pub keep: bool,
     pub ident_sync: Option<String>,
     pub ident_async: Option<String>,
+    pub idents: Option<HashMap<String, String>>,
 }
 
 impl IdentRecord {
-    pub fn ident_add_suffix(&self, ident: &Ident, convert_mode: ConvertMode) -> Ident {
+    pub fn new() -> Self {
+        Self {
+            fn_mode: false,
+            use_mode: false,
+            keep: false,
+            ident_sync: None,
+            ident_async: None,
+            idents: None,
+        }
+    }
+
+    pub fn with_fn_mode( fn_mode: bool ) -> Self {
+        Self {
+            fn_mode,
+            use_mode: false,
+            keep: false,
+            ident_sync: None,
+            ident_async: None,
+            idents: None,
+        }
+    }
+
+    pub fn ident_add_suffix(&self, ident: &Ident, convert_mode: ConvertMode, version_name: Option<&str>) -> Ident {
         if self.keep {
             return ident.clone();
+        }
+
+        if let Some(version_name) = version_name {
+            if let Some(idents) = self.idents.as_ref() {
+                if let Some(value) = idents.get(version_name) {
+                    return Ident::new(value, ident.span());
+                }
+            }
         }
 
         match convert_mode {
@@ -585,13 +610,7 @@ impl MacroParametersBuilder {
                             "Expected ident, but not complex path",
                         ))?
                         .to_string();
-                    let ir = IdentRecord {
-                        fn_mode: false,
-                        use_mode: false,
-                        keep: false,
-                        ident_sync: None,
-                        ident_async: None,
-                    };
+                    let ir = IdentRecord::new();
                     idents.insert(ident, ir);
                 }
                 NestedMeta::Meta(Meta::List(syn::MetaList { path, nested, .. })) => {
@@ -602,13 +621,7 @@ impl MacroParametersBuilder {
                             "Expected ident, but not complex path",
                         ))?
                         .to_string();
-                    let mut ir = IdentRecord {
-                        fn_mode: false,
-                        use_mode: false,
-                        keep: false,
-                        ident_sync: None,
-                        ident_async: None,
-                    };
+                    let mut ir = IdentRecord::new();
                     for inm in nested {
                         match inm {
                             NestedMeta::Meta(Meta::Path(path)) => {
@@ -664,10 +677,8 @@ impl MacroParametersBuilder {
                                         ir.ident_async = Some(ivalue);
                                     }
                                     _ => {
-                                        return Err(syn::Error::new_spanned(
-                                            nm.to_token_stream(),
-                                            "Expected sync = \"ident\", or async = \"ident\"",
-                                        ))
+                                        let idents = ir.idents.get_or_insert_with(|| HashMap::new());
+                                        idents.insert(iname, ivalue);
                                     }
                                 }
                             }
