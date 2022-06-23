@@ -6,13 +6,12 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Group, TokenStream as TokenStream2, TokenTree};
 use proc_macro_error::emit_error;
 use quote::quote;
-use syn::Attribute;
 
 use crate::{
     params::MacroParameters,
     utils::{set_error_and_return, unwrap_or_set_error_and_return},
     visit_ext::{VisitMutExt, Visitor},
-    DEFAULT_CRATE_NAME,
+    DEFAULT_CRATE_NAME, MACRO_MAYBE_NAME, MACRO_DEFAULT_NAME,
 };
 
 pub struct ContentVisitor {
@@ -26,7 +25,7 @@ impl ContentVisitor {
         }
     }
 
-    fn process_attribute_maybe(&mut self, node: &mut Attribute) -> syn::Result<()> {
+    fn process_attribute_maybe(&mut self, node: &mut syn::Attribute) -> syn::Result<()> {
         let mut params = MacroParameters::from_tokens_in_parens(node.tokens.clone().into())?;
 
         MacroParameters::apply_parent(&mut params, &self.params)?;
@@ -57,7 +56,7 @@ impl ContentVisitor {
     fn process_attribute(&mut self, node: &mut syn::Attribute) -> syn::Result<()> {
         if let Some(name) = self.params.is_our_attr(node) {
             match name.as_str() {
-                "maybe" => self.process_attribute_maybe(node)?,
+                MACRO_MAYBE_NAME => self.process_attribute_maybe(node)?,
                 _ => {}
             }
         }
@@ -152,7 +151,7 @@ impl ContentVisitor {
                 }
                 5 => {
                     if let TokenTree::Ident(ident) = &tt {
-                        if ident.to_string() == "maybe" {
+                        if ident.to_string() == MACRO_MAYBE_NAME {
                             result.extend(vec![tt]);
                             state = 6;
                             continue;
@@ -214,7 +213,7 @@ fn is_default_attr(attr: &syn::Attribute) -> Option<String> {
                 let first = first_segment.ident.to_string();
                 let last = last_segment.ident.to_string();
 
-                if last == "default" {
+                if last == MACRO_DEFAULT_NAME {
                     return Some(first);
                 }
             }

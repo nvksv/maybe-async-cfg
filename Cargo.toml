@@ -1,6 +1,6 @@
 [package]
 name = "maybe-async-cfg"
-version = "0.1.1"
+version = "0.2.0"
 authors = [ "Sergey V. Kokorin <nvksv@nvksv.ru>" ]
 edition = "2021"
 readme = "README.md"
@@ -41,7 +41,9 @@ async-trait = "0.1"
   features = [ "macros", "rt-multi-thread" ]
 
 [features]
+# default = ["debug"]
 default = []
 
 debug = []
+no-debug = []
 

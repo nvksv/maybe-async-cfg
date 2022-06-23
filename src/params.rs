@@ -11,7 +11,7 @@ use syn::{
 };
 
 use crate::{
-    macros::ConvertMode, utils::AttributeArgsInParens, DEFAULT_CRATE_NAME, STANDARD_MACROS,
+    DEFAULT_CRATE_NAME, STANDARD_MACROS,
     utils::*,
 };
 
@@ -20,11 +20,11 @@ const MODE_INTO_SYNC: &'static str = "__into_sync";
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// #[derive(Debug, Clone, Copy)]
-// pub enum MacroParameterVersionKind {
-//     Sync,
-//     Async,
-// }
+#[derive(Debug, Clone, Copy)]
+pub enum ConvertMode {
+    IntoSync,
+    IntoAsync,
+}
 
 impl ConvertMode {
     fn from_str<S: AsRef<str>>(s: S) -> Option<Self> {
@@ -46,6 +46,121 @@ impl ConvertMode {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
+pub struct IdentRecord {
+    pub fn_mode: bool,
+    pub use_mode: bool,
+    pub keep: bool,
+    pub ident_sync: Option<String>,
+    pub ident_async: Option<String>,
+    pub idents: Option<HashMap<String, String>>,
+}
+
+impl IdentRecord {
+    pub fn new() -> Self {
+        Self {
+            fn_mode: false,
+            use_mode: false,
+            keep: false,
+            ident_sync: None,
+            ident_async: None,
+            idents: None,
+        }
+    }
+
+    pub fn with_fn_mode( fn_mode: bool ) -> Self {
+        Self {
+            fn_mode,
+            use_mode: false,
+            keep: false,
+            ident_sync: None,
+            ident_async: None,
+            idents: None,
+        }
+    }
+
+    pub fn ident_add_suffix(&self, ident: &Ident, convert_mode: ConvertMode, version_name: Option<&str>) -> Ident {
+        if self.keep {
+            return ident.clone();
+        }
+
+        if let Some(version_name) = version_name {
+            if let Some(idents) = self.idents.as_ref() {
+                if let Some(value) = idents.get(version_name) {
+                    return Ident::new(value, ident.span());
+                }
+            }
+        }
+
+        match convert_mode {
+            ConvertMode::IntoSync => {
+                if let Some(name) = &self.ident_sync {
+                    return Ident::new(&name, ident.span());
+                }
+            }
+            ConvertMode::IntoAsync => {
+                if let Some(name) = &self.ident_async {
+                    return Ident::new(&name, ident.span());
+                }
+            }
+        };
+
+        let suffix = match (self.fn_mode, convert_mode) {
+            (false, ConvertMode::IntoAsync) => "Async",
+            (false, ConvertMode::IntoSync) => "Sync",
+            (true, ConvertMode::IntoAsync) => "_async",
+            (true, ConvertMode::IntoSync) => "_sync",
+        };
+
+        Ident::new(&format!("{}{}", ident, suffix), ident.span())
+    }
+
+    pub fn to_nestedmeta(&self, name: &str) -> syn::NestedMeta {
+        let mut nested = Punctuated::<syn::NestedMeta, syn::token::Comma>::new();
+        
+        if self.fn_mode {
+            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("fn"))));
+        };
+    
+        if self.use_mode {
+            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("use"))));
+        };
+    
+        if self.keep {
+            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("keep"))));
+        };
+    
+        if let Some(value) = &self.ident_async {
+            if value == name {
+                nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("async"))));
+            } else {
+                nested.push(make_nestedmeta_namevalue("async", value.as_str()));
+            }
+        };
+        if let Some(value) = &self.ident_sync {
+            if value == name {
+                nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("sync"))));
+            } else {
+                nested.push(make_nestedmeta_namevalue("sync", value.as_str()));
+            }
+        };
+    
+        if let Some(idents) = &self.idents {
+            for (key, value) in idents {
+                nested.push(make_nestedmeta_namevalue(key.as_str(), value.as_str()));
+            }
+        };
+    
+        if nested.is_empty() {
+            syn::NestedMeta::Meta(syn::Meta::Path(make_path(name)))
+        } else {
+            make_nestedmeta_list(name, nested)
+        }
+    }    
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Debug, Clone)]
 pub struct MacroParameterVersion {
     pub kind: ConvertMode,
     pub params: MacroParameters,
@@ -57,19 +172,18 @@ pub struct MacroParameters {
     disable: bool,
     key: Option<String>,
     self_name: Option<String>,
-    original_self_name: Option<String>,
+    keep_self: bool,
     // settings
     prefix: Option<String>,
     idents: HashMap<String, IdentRecord>,
     send: Option<bool>,
-    keep_self: bool,
     // groups
     cfg: Option<Meta>,
     outer_attrs: Punctuated<NestedMeta, Comma>,
     inner_attrs: Punctuated<NestedMeta, Comma>,
     drop_attrs: Vec<String>,
     replace_features: HashMap<String, String>,
-    // actions
+    // versions
     pub versions: Vec<MacroParameterVersion>,
 }
 
@@ -80,7 +194,6 @@ impl std::fmt::Debug for MacroParameters {
            .field("disable", &self.disable)
            .field("key", &self.key)
            .field("self_name", &self.self_name)
-           .field("original_self_name", &self.original_self_name)
            .field("prefix", &self.prefix)
            .field("idents", &self.idents)
            .field("send", &self.send)
@@ -96,21 +209,6 @@ impl std::fmt::Debug for MacroParameters {
         }
 }
 
-struct DebugByDisplay<T: std::fmt::Display>(T);
-
-impl<T: std::fmt::Display> std::fmt::Debug for DebugByDisplay<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        T::fmt(&self.0, f)
-    }
-}
-
-struct OptionToTokens<T: ToTokens>(Option<T>);
-
-impl<T: ToTokens> std::fmt::Debug for OptionToTokens<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {    
-        self.0.as_ref().map(|m| DebugByDisplay(m.to_token_stream())).fmt(f)
-    }
-}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 macro_rules! lit_str {
@@ -154,7 +252,6 @@ impl MacroParameters {
                         match name.as_str() {
                             "key" => lit_str!(lit, builder, key, "Expected string literal"),
                             "self" => lit_str!(lit, builder, self_name, "Expected string literal"),
-                            "__original_self" => lit_str!(lit, builder, original_self_name, "Expected string literal"),
                             "prefix" => lit_str!(lit, builder, prefix, "Expected string literal"),
                             "send" => lit_str!(lit, builder, send, "Expected string literal"),
                             "feature" => lit_meta!(lit, meta, builder, feature, "Expected string literal"),
@@ -266,10 +363,6 @@ impl MacroParameters {
             args.push(make_nestedmeta_namevalue("self", self_name.as_str()));
         }
 
-        // if let Some(original_self_name) = &self.original_self_name {
-        //     args.push(make_nestedmeta_namevalue("__original_self", original_self_name.as_str()));
-        // }
-
         if let Some(prefix) = &self.prefix {
             args.push(make_nestedmeta_namevalue("prefix", prefix.as_str()));
         }
@@ -298,7 +391,7 @@ impl MacroParameters {
         if !self.idents.is_empty() {
             let mut nested = Punctuated::<syn::NestedMeta, syn::token::Comma>::new();
             for (name, value) in &self.idents {
-                nested.push(make_identrecord(name.as_str(), value));
+                nested.push(value.to_nestedmeta(name.as_str()));
             }
             let arg = make_nestedmeta_list("idents", nested);
             args.push(arg);
@@ -329,10 +422,10 @@ impl MacroParameters {
             }
         }
 
-        for action in &self.versions {
-            let (name, nested) = match action.kind {
+        for version in &self.versions {
+            let (name, nested) = match version.kind {
                 ConvertMode::IntoSync | ConvertMode::IntoAsync => {
-                    (action.kind.to_str(), action.params.to_nestedmeta(None))
+                    (version.kind.to_str(), version.params.to_nestedmeta(None))
                 }
             };
 
@@ -435,28 +528,11 @@ impl MacroParameters {
         self.mode
     }
 
-    // pub fn keep_self_get(&self) -> bool {
-    //     self.keep_self
-    // }
-
-    // pub fn idents_add<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
-    //     if self.idents.get(name.as_ref()).is_none() {
-    //         let ir = self.default_ident_record(fn_mode);
-    //         self.idents.insert(name.as_ref().to_string(), ir);
-    //     }
-    // }
-
     pub fn key_get<'s>(&'s self) -> Option<&'s str> {
         self.key.as_ref().map(|s| s.as_str())
     }
 
-    // pub fn self_name_get<'s>(&'s self) -> Option<&'s str> {
-    //     self.self_name.as_ref().map(|s| s.as_str())
-    // }
-
     pub fn original_self_name_set<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
-        self.original_self_name = Some(name.as_ref().to_string());
-
         if !self.keep_self {
             if self.idents.get(name.as_ref()).is_none() {
                 let mut ir = self.default_ident_record(fn_mode);
@@ -563,79 +639,6 @@ impl MacroParameters {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug, Clone)]
-pub struct IdentRecord {
-    pub fn_mode: bool,
-    pub use_mode: bool,
-    pub keep: bool,
-    pub ident_sync: Option<String>,
-    pub ident_async: Option<String>,
-    pub idents: Option<HashMap<String, String>>,
-}
-
-impl IdentRecord {
-    pub fn new() -> Self {
-        Self {
-            fn_mode: false,
-            use_mode: false,
-            keep: false,
-            ident_sync: None,
-            ident_async: None,
-            idents: None,
-        }
-    }
-
-    pub fn with_fn_mode( fn_mode: bool ) -> Self {
-        Self {
-            fn_mode,
-            use_mode: false,
-            keep: false,
-            ident_sync: None,
-            ident_async: None,
-            idents: None,
-        }
-    }
-
-    pub fn ident_add_suffix(&self, ident: &Ident, convert_mode: ConvertMode, version_name: Option<&str>) -> Ident {
-        if self.keep {
-            return ident.clone();
-        }
-
-        if let Some(version_name) = version_name {
-            if let Some(idents) = self.idents.as_ref() {
-                if let Some(value) = idents.get(version_name) {
-                    return Ident::new(value, ident.span());
-                }
-            }
-        }
-
-        match convert_mode {
-            ConvertMode::IntoSync => {
-                if let Some(name) = &self.ident_sync {
-                    return Ident::new(&name, ident.span());
-                }
-            }
-            ConvertMode::IntoAsync => {
-                if let Some(name) = &self.ident_async {
-                    return Ident::new(&name, ident.span());
-                }
-            }
-        };
-
-        let suffix = match (self.fn_mode, convert_mode) {
-            (false, ConvertMode::IntoAsync) => "Async",
-            (false, ConvertMode::IntoSync) => "Sync",
-            (true, ConvertMode::IntoAsync) => "_async",
-            (true, ConvertMode::IntoSync) => "_sync",
-        };
-
-        // TODO: not sure if ident.span() is the way to go
-        Ident::new(&format!("{}{}", ident, suffix), ident.span())
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 #[derive(Debug)]
 pub struct MacroParametersBuilder {
     params: MacroParameters,
@@ -649,7 +652,6 @@ impl MacroParametersBuilder {
                 disable: false,
                 key: None,
                 self_name: None, 
-                original_self_name: None, 
                 prefix: None,
                 idents: HashMap::new(),
                 keep_self: false,
@@ -681,11 +683,6 @@ impl MacroParametersBuilder {
 
     pub fn self_name(&mut self, self_name: String) -> syn::Result<()> {
         self.params.self_name = Some(self_name);
-        Ok(())
-    }
-
-    pub fn original_self_name(&mut self, original_self_name: String) -> syn::Result<()> {
-        self.params.original_self_name = Some(original_self_name);
         Ok(())
     }
 
@@ -980,17 +977,17 @@ impl MacroParametersBuilder {
     }
 
     pub fn build(mut self) -> syn::Result<MacroParameters> {
-        let mut actions = std::mem::replace(&mut self.params.versions, vec![]);
+        let mut versions = std::mem::replace(&mut self.params.versions, vec![]);
 
-        for action in &mut actions {
-            MacroParameters::apply_parent(&mut action.params, &self.params)?;
+        for version in &mut versions {
+            MacroParameters::apply_parent(&mut version.params, &self.params)?;
 
-            if action.params.key.is_none() {
-                action.params.key = Some(action.kind.to_str().to_string());
+            if version.params.key.is_none() {
+                version.params.key = Some(version.kind.to_str().to_string());
             }
         }
 
-        self.params.versions = actions;
+        self.params.versions = versions;
 
         Ok(self.params)
     }

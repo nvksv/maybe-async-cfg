@@ -1,5 +1,3 @@
-use crate::params::IdentRecord;
-
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{
     parenthesized,
@@ -15,6 +13,8 @@ use syn::{
 
 use quote::ToTokens;
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 macro_rules! unwrap_or_error {
     ($res:expr) => {
         match $res {
@@ -27,18 +27,18 @@ macro_rules! unwrap_or_error {
 }
 pub(crate) use unwrap_or_error;
 
-macro_rules! unwrap2_or_error {
-    ($res:expr) => {
-        match $res {
-            Ok(p) => p,
-            Err(err) => {
-                return proc_macro2::TokenStream::from(syn::Error::from(err).to_compile_error());
-            }
-        }
-    };
-}
+// macro_rules! unwrap2_or_error {
+//     ($res:expr) => {
+//         match $res {
+//             Ok(p) => p,
+//             Err(err) => {
+//                 return proc_macro2::TokenStream::from(syn::Error::from(err).to_compile_error());
+//             }
+//         }
+//     };
+// }
 
-pub(crate) use unwrap2_or_error;
+// pub(crate) use unwrap2_or_error;
 
 macro_rules! set_error_and_return {
     ($err:expr) => {{
@@ -67,6 +67,8 @@ macro_rules! unwrap_or_set_error_and_return {
     };
 }
 pub(crate) use unwrap_or_set_error_and_return;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub(crate) fn make_path(name: &str) -> syn::Path {
     let mut segments = Punctuated::<syn::PathSegment, syn::token::Colon2>::new();
@@ -100,52 +102,9 @@ pub(crate) fn make_nestedmeta_list(
     }))
 }
 
-pub(crate) fn make_identrecord(name: &str, ir: &IdentRecord) -> syn::NestedMeta {
-    let mut nested = Punctuated::<syn::NestedMeta, syn::token::Comma>::new();
-    
-    if ir.fn_mode {
-        nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("fn"))));
-    };
-
-    if ir.use_mode {
-        nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("use"))));
-    };
-
-    if ir.keep {
-        nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("keep"))));
-    };
-
-    if let Some(value) = &ir.ident_async {
-        if value == name {
-            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("async"))));
-        } else {
-            nested.push(make_nestedmeta_namevalue("async", value.as_str()));
-        }
-    };
-    if let Some(value) = &ir.ident_sync {
-        if value == name {
-            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("sync"))));
-        } else {
-            nested.push(make_nestedmeta_namevalue("sync", value.as_str()));
-        }
-    };
-
-    if let Some(idents) = &ir.idents {
-        for (key, value) in idents {
-            nested.push(make_nestedmeta_namevalue(key.as_str(), value.as_str()));
-        }
-    };
-
-    if nested.is_empty() {
-        syn::NestedMeta::Meta(syn::Meta::Path(make_path(name)))
-    } else {
-        make_nestedmeta_list(name, nested)
-    }
-}
-
 pub(crate) fn make_attr_from_str<S: AsRef<str>>(s: S, span: Span) -> syn::Result<syn::Attribute> {
     let stream: TokenStream2 = format!("#[{}]", s.as_ref()).parse()?;
-    let mut attrs: Attrs = syn::parse(stream.into())?;
+    let mut attrs: VecOfAttrs = syn::parse(stream.into())?;
     let attr = match attrs.attrs.len() {
         1 => attrs.attrs.remove(0),
         _ => return Err(syn::Error::new(span, "Expected attribute")),
@@ -158,17 +117,21 @@ pub(crate) fn make_attr_ts_from_str<S: AsRef<str>>(s: S, span: Span) -> syn::Res
     Ok(make_attr_from_str(s, span)?.to_token_stream())
 }
 
-struct Attrs {
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct VecOfAttrs {
     pub attrs: Vec<syn::Attribute>,
 }
 
-impl syn::parse::Parse for Attrs {
+impl syn::parse::Parse for VecOfAttrs {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        Ok(Attrs {
+        Ok(VecOfAttrs {
             attrs: input.call(syn::Attribute::parse_outer)?,
         })
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub struct AttributeArgsInParens {
     _paren: syn::token::Paren,
@@ -185,6 +148,8 @@ impl syn::parse::Parse for AttributeArgsInParens {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub struct PunctuatedList {
     pub list: Punctuated<Expr, Comma>,
 }
@@ -194,5 +159,25 @@ impl Parse for PunctuatedList {
         Ok(PunctuatedList {
             list: Punctuated::<Expr, Comma>::parse_terminated(input)?,
         })
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct DebugByDisplay<T: std::fmt::Display>(pub T);
+
+impl<T: std::fmt::Display> std::fmt::Debug for DebugByDisplay<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        T::fmt(&self.0, f)
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct OptionToTokens<T: ToTokens>(pub Option<T>);
+
+impl<T: ToTokens> std::fmt::Debug for OptionToTokens<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {    
+        self.0.as_ref().map(|m| DebugByDisplay(m.to_token_stream())).fmt(f)
     }
 }

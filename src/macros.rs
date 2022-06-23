@@ -16,31 +16,21 @@ use quote::{quote, ToTokens};
 
 use crate::{
     MACRO_MAYBE_NAME,
-    params::MacroParameters,
+    params::{ConvertMode, MacroParameters},
     utils::{make_attr_from_str, unwrap_or_error},
     visit_ext::Visitor,
     visitor_async::AsyncAwaitVisitor,
     visitor_content::ContentVisitor,
+    debug::*
 };
 
-#[cfg(feature="debug")]
-use crate::debug::*;
-
-#[derive(Debug, Clone, Copy)]
-pub enum ConvertMode {
-    IntoSync,
-    IntoAsync,
-}
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
-
-    #[cfg(feature="debug")]
-    dump_maybe(&args, &input);
+    dump_maybe!(&args, &input);
 
     let params = unwrap_or_error!(MacroParameters::from_tokens(args));
-
-    #[cfg(feature="debug")]
-    dump_params("maybe params", &params);
+    dump_params!("maybe params", &params);
 
     if params.disable_get() {
         return input;
@@ -75,19 +65,15 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
         tokens.extend(input.clone());
     }
 
-    #[cfg(feature="debug")]
-    dump_tokens("maybe after", &tokens);
+    dump_tokens!("maybe after", &tokens);
 
     tokens
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: ConvertMode) -> TokenStream {
-
-//    let mut params = unwrap_or_error!(MacroParameters::from_tokens(args));
-    let ts;
-
-    #[cfg(feature="debug")]
-    dump_tokens("convert before", &input);
+    dump_tokens!("convert before", &input);
 
     let mut file = parse_macro_input!(input as File);
     for item in &mut file.items {
@@ -103,11 +89,9 @@ pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: Co
             }
         }
     }
-    ts = quote!(#file);
+    let ts = quote!(#file);
 
-    #[cfg(feature="debug")]
-    dump_tokens2("convert after", &ts);
-
+    dump_tokens2!("convert after", &ts);
     ts.into()
 }
 
@@ -208,16 +192,14 @@ fn convert_use(params: &mut MacroParameters, item: &mut ItemUse, convert_mode: C
     visitor.visit_item_use_mut(item)
 }
 
-pub fn content(body: TokenStream) -> TokenStream {
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    #[cfg(feature="debug")]
-    dump_tokens("content before", &body);
+pub fn content(body: TokenStream) -> TokenStream {
+    dump_tokens!("content before", &body);
 
     let mut visitor = Visitor::new(ContentVisitor::new());
     let ts: TokenStream = visitor.process(body.into()).into();
 
-    #[cfg(feature="debug")]
-    dump_tokens("content after", &ts);
-
+    dump_tokens!("content after", &ts);
     ts
 }

@@ -1,17 +1,14 @@
+#[allow(unused_imports)]
 use std::{collections::HashMap, iter::FromIterator};
 
 #[allow(unused_imports)]
 use proc_macro::TokenStream;
 use quote::{quote, ToTokens};
-use syn::{
-    parse_quote, punctuated::Punctuated, visit_mut::VisitMut, Attribute, Expr, ExprBlock,
-    GenericArgument, GenericParam, Ident, Item, Macro, MetaNameValue, NestedMeta, PathArguments,
-    PathSegment, Type, TypeParam, TypeParamBound, WherePredicate,
-};
+use syn::visit_mut::VisitMut;
 
 use crate::{
-    macros::ConvertMode,
-    params::MacroParameters,
+    MACRO_NOOP_NAME, MACRO_REMOVE_NAME, MACRO_ONLY_IF_NAME, MACRO_REMOVE_IF_NAME,
+    params::{ConvertMode, MacroParameters},
     utils::{AttributeArgsInParens, PunctuatedList},
     visit_ext::{IdentMode, VisitMutExt, Visitor},
 };
@@ -19,7 +16,7 @@ use crate::{
 pub struct AsyncAwaitVisitor<'p> {
     convert_mode: ConvertMode,
     params: &'p mut MacroParameters,
-    generics: Vec<HashMap<String, PathSegment>>,
+    generics: Vec<HashMap<String, syn::PathSegment>>,
 }
 
 impl<'p> AsyncAwaitVisitor<'p> {
@@ -31,7 +28,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         }
     }
 
-    fn generics_get<S: AsRef<str>>(&self, key: S) -> Option<&PathSegment> {
+    fn generics_get<S: AsRef<str>>(&self, key: S) -> Option<&syn::PathSegment> {
         for gens in &self.generics {
             if let Some(ps) = gens.get(key.as_ref()) {
                 return Some(ps);
@@ -42,16 +39,16 @@ impl<'p> AsyncAwaitVisitor<'p> {
     }
 }
 
-fn search_future_trait_bound(bound: &TypeParamBound) -> Option<PathSegment> {
-    if let TypeParamBound::Trait(trait_bound) = bound {
+fn search_future_trait_bound(bound: &syn::TypeParamBound) -> Option<syn::PathSegment> {
+    if let syn::TypeParamBound::Trait(trait_bound) = bound {
         let segment = &trait_bound.path.segments[trait_bound.path.segments.len() - 1];
         let name = segment.ident.to_string();
         if name.eq("Future") {
             // match Future<Output=Type>
-            if let PathArguments::AngleBracketed(args) = &segment.arguments {
+            if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
                 // binding: Output=Type
-                if let GenericArgument::Binding(binding) = &args.args[0] {
-                    if let Type::Path(p) = &binding.ty {
+                if let syn::GenericArgument::Binding(binding) = &args.args[0] {
+                    if let syn::Type::Path(p) = &binding.ty {
                         return Some(p.path.segments[0].clone());
                     }
                 }
@@ -67,7 +64,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         let mut changed = false;
 
         match meta {
-            syn::Meta::NameValue(MetaNameValue {
+            syn::Meta::NameValue(syn::MetaNameValue {
                 path,
                 lit: syn::Lit::Str(s),
                 ..
@@ -95,7 +92,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(changed)
     }
 
-    fn process_attribute_if(&mut self, attr: &mut Attribute, not: bool) -> syn::Result<()> {
+    fn process_attribute_if(&mut self, attr: &mut syn::Attribute, not: bool) -> syn::Result<()> {
         let args =
             syn::parse_macro_input::parse::<AttributeArgsInParens>(attr.tokens.clone().into())?;
 
@@ -116,8 +113,8 @@ impl<'p> AsyncAwaitVisitor<'p> {
         };
 
         let key = match arg {
-            NestedMeta::Lit(syn::Lit::Str(s)) => s.value(),
-            NestedMeta::Meta(syn::Meta::Path(ref p)) => {
+            syn::NestedMeta::Lit(syn::Lit::Str(s)) => s.value(),
+            syn::NestedMeta::Meta(syn::Meta::Path(ref p)) => {
                 if let Some(s) = p.get_ident() {
                     s.to_string()
                 } else {
@@ -127,7 +124,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                     ));
                 }
             }
-            NestedMeta::Meta(syn::Meta::NameValue(syn::MetaNameValue {
+            syn::NestedMeta::Meta(syn::Meta::NameValue(syn::MetaNameValue {
                 path,
                 lit: syn::Lit::Str(value),
                 ..
@@ -146,7 +143,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
             false
         };
 
-        let new_name = if success { "noop" } else { "remove" };
+        let new_name = if success { MACRO_NOOP_NAME } else { MACRO_REMOVE_NAME };
         attr.path = self.params.make_self_path(new_name);
 
         Ok(())
@@ -156,8 +153,8 @@ impl<'p> AsyncAwaitVisitor<'p> {
         for attr in attrs.iter_mut() {
             if let Some(name) = self.params.is_our_attr(attr) {
                 match name.as_str() {
-                    "only_if" => self.process_attribute_if(attr, false)?,
-                    "remove_if" => self.process_attribute_if(attr, true)?,
+                    MACRO_ONLY_IF_NAME => self.process_attribute_if(attr, false)?,
+                    MACRO_REMOVE_IF_NAME => self.process_attribute_if(attr, true)?,
                     _ => {
                         // Attribute stays unchanged. Unknown attributes will be
                         // rejected by compiter later.
@@ -196,24 +193,24 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn process_expr(&mut self, node: &mut Expr) -> syn::Result<()> {
+    fn process_expr(&mut self, node: &mut syn::Expr) -> syn::Result<()> {
         match self.convert_mode {
             ConvertMode::IntoSync => {
                 // async -> sync, remove async_impl blocks
                 match node {
-                    Expr::Await(expr) => {
+                    syn::Expr::Await(expr) => {
                         *node = (*expr.base).clone()
                     }
 
-                    Expr::Async(expr) => {
+                    syn::Expr::Async(expr) => {
                         let inner = &expr.block;
                         let sync_expr = if inner.stmts.len() == 1 {
                             // remove useless braces when there is only one statement
                             let stmt = &inner.stmts.get(0).unwrap();
                             // convert statement to Expr
-                            parse_quote!(#stmt)
+                            syn::parse_quote!(#stmt)
                         } else {
-                            Expr::Block(ExprBlock {
+                            syn::Expr::Block(syn::ExprBlock {
                                 attrs: expr.attrs.clone(),
                                 block: inner.clone(),
                                 label: None,
@@ -236,17 +233,17 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn process_item(&mut self, node: &mut Item) -> syn::Result<()> {
+    fn process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         match self.convert_mode {
             ConvertMode::IntoSync => {
                 // find generic parameter of Future and replace it with its Output type
-                if let Item::Fn(item_fn) = node {
-                    let mut gens: HashMap<String, PathSegment> = HashMap::new();
+                if let syn::Item::Fn(item_fn) = node {
+                    let mut gens: HashMap<String, syn::PathSegment> = HashMap::new();
 
                     // generic params: <T:Future<Output=()>, F>
                     for param in &item_fn.sig.generics.params {
                         // generic param: T:Future<Output=()>
-                        if let GenericParam::Type(type_param) = param {
+                        if let syn::GenericParam::Type(type_param) = param {
                             let generic_type_name = &type_param.ident;
 
                             // bound: Future<Output=()>
@@ -260,9 +257,9 @@ impl<'p> AsyncAwaitVisitor<'p> {
 
                     if let Some(where_clause) = &item_fn.sig.generics.where_clause {
                         for predicate in &where_clause.predicates {
-                            if let WherePredicate::Type(predicate_type) = predicate {
+                            if let syn::WherePredicate::Type(predicate_type) = predicate {
                                 let generic_type_name =
-                                    if let Type::Path(p) = &predicate_type.bounded_ty {
+                                    if let syn::Type::Path(p) = &predicate_type.bounded_ty {
                                         &p.path.segments[0].ident
                                     } else {
                                         panic!("Please submit an issue");
@@ -280,7 +277,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                     self.generics.push(gens);
                 }
 
-                if let Item::Fn(item_fn) = node {
+                if let syn::Item::Fn(item_fn) = node {
                     // remove generic type from generics <T, F>
                     let args = item_fn
                         .sig
@@ -288,7 +285,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                         .params
                         .iter()
                         .filter_map(|param| {
-                            if let GenericParam::Type(type_param) = &param {
+                            if let syn::GenericParam::Type(type_param) = &param {
                                 if let Some(_) = self.generics_get(type_param.ident.to_string()) {
                                     return None;
                                 }
@@ -297,7 +294,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                         })
                         .collect::<Vec<_>>();
 
-                    item_fn.sig.generics.params = Punctuated::from_iter(
+                    item_fn.sig.generics.params = syn::punctuated::Punctuated::from_iter(
                         args.into_iter().map(|p| p.clone()).collect::<Vec<_>>(),
                     );
 
@@ -307,8 +304,8 @@ impl<'p> AsyncAwaitVisitor<'p> {
                             .predicates
                             .iter()
                             .filter_map(|predicate| {
-                                if let WherePredicate::Type(predicate_type) = predicate {
-                                    if let Type::Path(p) = &predicate_type.bounded_ty {
+                                if let syn::WherePredicate::Type(predicate_type) = predicate {
+                                    if let syn::Type::Path(p) = &predicate_type.bounded_ty {
                                         if let Some(_) =
                                             self.generics_get(p.path.segments[0].ident.to_string())
                                         {
@@ -320,7 +317,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                             })
                             .collect::<Vec<_>>();
 
-                        where_clause.predicates = Punctuated::from_iter(
+                        where_clause.predicates = syn::punctuated::Punctuated::from_iter(
                             new_where_clause
                                 .into_iter()
                                 .map(|c| c.clone())
@@ -335,11 +332,11 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn after_process_item(&mut self, node: &mut Item) -> syn::Result<()> {
+    fn after_process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         match self.convert_mode {
             ConvertMode::IntoSync => {
                 // find generic parameter of Future and replace it with its Output type
-                if let Item::Fn(_item_fn) = node {
+                if let syn::Item::Fn(_item_fn) = node {
                     self.generics.pop();
                 }
             }
@@ -348,7 +345,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn process_path_segment(&mut self, node: &mut PathSegment) -> syn::Result<()> {
+    fn process_path_segment(&mut self, node: &mut syn::PathSegment) -> syn::Result<()> {
         let ident = &mut node.ident;
         let ident_s = ident.to_string();
 
@@ -361,7 +358,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn process_ident(&mut self, ident: &mut Ident, mode: IdentMode) -> syn::Result<()> {
+    fn process_ident(&mut self, ident: &mut syn::Ident, mode: IdentMode) -> syn::Result<()> {
         if mode == IdentMode::Use {
             return Ok(());
         };
@@ -374,7 +371,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
-    fn process_type_param(&mut self, node: &mut TypeParam) -> syn::Result<()> {
+    fn process_type_param(&mut self, node: &mut syn::TypeParam) -> syn::Result<()> {
         let ident = &mut node.ident;
 
         if let Some(ir) = self.params.idents_get(&ident.to_string()) {
@@ -416,23 +413,23 @@ impl<'p> AsyncAwaitVisitor<'p> {
 }
 
 impl<'p> VisitMutExt for Visitor<AsyncAwaitVisitor<'p>> {
-    fn process_attrs(&mut self, attrs: &mut Vec<Attribute>) -> syn::Result<()> {
+    fn process_attrs(&mut self, attrs: &mut Vec<syn::Attribute>) -> syn::Result<()> {
         self.inner.process_attrs(attrs)
     }
-    fn process_ident(&mut self, ident: &mut Ident, mode: IdentMode) -> syn::Result<()> {
+    fn process_ident(&mut self, ident: &mut syn::Ident, mode: IdentMode) -> syn::Result<()> {
         self.inner.process_ident(ident, mode)
     }
-    fn process_expr(&mut self, node: &mut Expr) -> syn::Result<()> {
+    fn process_expr(&mut self, node: &mut syn::Expr) -> syn::Result<()> {
         self.inner.process_expr(node)
     }
-    fn process_item(&mut self, node: &mut Item) -> syn::Result<()> {
+    fn process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         self.inner.process_item(node)
     }
-    fn after_process_item(&mut self, node: &mut Item) -> syn::Result<()> {
+    fn after_process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         self.inner.after_process_item(node)
     }
 
-    fn process_macro(&mut self, node: &mut Macro) -> syn::Result<()> {
+    fn process_macro(&mut self, node: &mut syn::Macro) -> syn::Result<()> {
         if let Some(ident) = node.path.get_ident() {
             if self
                 .inner
@@ -451,10 +448,10 @@ impl<'p> VisitMutExt for Visitor<AsyncAwaitVisitor<'p>> {
         };
         Ok(())
     }
-    fn process_path_segment(&mut self, node: &mut PathSegment) -> syn::Result<()> {
+    fn process_path_segment(&mut self, node: &mut syn::PathSegment) -> syn::Result<()> {
         self.inner.process_path_segment(node)
     }
-    fn process_type_param(&mut self, node: &mut TypeParam) -> syn::Result<()> {
+    fn process_type_param(&mut self, node: &mut syn::TypeParam) -> syn::Result<()> {
         self.inner.process_type_param(node)
     }
     fn process_use_tree(&mut self, node: &mut syn::UseTree) -> syn::Result<()> {
