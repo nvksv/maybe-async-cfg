@@ -34,7 +34,13 @@ pub enum ConvertMode {
 
 pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
 
+    #[cfg(feature="debug")]
+    dump_maybe(&args, &input);
+
     let params = unwrap_or_error!(MacroParameters::from_tokens(args));
+
+    #[cfg(feature="debug")]
+    dump_params("maybe params", &params);
 
     if params.disable_get() {
         return input;
@@ -44,8 +50,6 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
         return convert(params, input, convert_mode)
     }
 
-    #[cfg(feature="debug")]
-    dump_tokens("maybe before", &input);
 
     let mut tokens = TokenStream::new();
 

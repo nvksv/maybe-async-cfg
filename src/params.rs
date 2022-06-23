@@ -51,7 +51,7 @@ pub struct MacroParameterVersion {
     pub params: MacroParameters,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct MacroParameters {
     mode: Option<ConvertMode>,
     disable: bool,
@@ -73,11 +73,44 @@ pub struct MacroParameters {
     pub versions: Vec<MacroParameterVersion>,
 }
 
-impl std::fmt::Display for MacroParameters {
+impl std::fmt::Debug for MacroParameters {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {    
+        f.debug_struct("MacroParameters")
+           .field("mode", &self.mode)
+           .field("disable", &self.disable)
+           .field("key", &self.key)
+           .field("self_name", &self.self_name)
+           .field("original_self_name", &self.original_self_name)
+           .field("prefix", &self.prefix)
+           .field("idents", &self.idents)
+           .field("send", &self.send)
+           .field("keep_self", &self.keep_self)
+           .field("cfg", &OptionToTokens(self.cfg.as_ref()))
+           .field("outer_attrs", &DebugByDisplay(self.outer_attrs.to_token_stream()))
+           .field("inner_attrs", &DebugByDisplay(self.inner_attrs.to_token_stream()))
+           .field("outer_attrs", &DebugByDisplay(self.outer_attrs.to_token_stream()))
+           .field("drop_attrs", &self.drop_attrs)
+           .field("replace_features", &self.replace_features)
+           .field("versions", &self.versions)
+           .finish()
+        }
+}
+
+struct DebugByDisplay<T: std::fmt::Display>(T);
+
+impl<T: std::fmt::Display> std::fmt::Debug for DebugByDisplay<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        T::fmt(&self.0, f)
     }
 }
 
+struct OptionToTokens<T: ToTokens>(Option<T>);
+
+impl<T: ToTokens> std::fmt::Debug for OptionToTokens<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {    
+        self.0.as_ref().map(|m| DebugByDisplay(m.to_token_stream())).fmt(f)
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 macro_rules! lit_str {
@@ -143,8 +176,6 @@ impl MacroParameters {
                             ))?
                             .to_string();
                         match name.as_str() {
-                            MODE_INTO_ASYNC => builder.mode_into_async()?,
-                            MODE_INTO_SYNC => builder.mode_into_sync()?,
                             "cfg" => builder.cfg_list(list)?,
                             "idents" => MacroParametersBuilder::idents(
                                 &mut builder.params.idents,
@@ -159,12 +190,16 @@ impl MacroParameters {
                         }
                     }
                     syn::Meta::Path(path) => {
-                        if path.is_ident("disable") {
-                            builder.disable()
-                        } else if path.is_ident("keep_self") {
-                            builder.keep_self()
+                        if let Some(name) = path.get_ident().map(|i| i.to_string()) {
+                            match name.as_str() {
+                                MODE_INTO_ASYNC => builder.mode_into_async()?,
+                                MODE_INTO_SYNC => builder.mode_into_sync()?,
+                                "disable" => builder.disable(),
+                                "keep_self" => builder.keep_self(),
+                                _ => builder.inner_attr(meta)?,
+                            }
                         } else {
-                            builder.inner_attr(meta)?
+                            builder.inner_attr(meta)?    
                         }
                     }
                 },

@@ -41,7 +41,7 @@ async-trait = "0.1"
   features = [ "macros", "rt-multi-thread" ]
 
 [features]
-default = ["debug"]
+default = []
 
 debug = []
 
