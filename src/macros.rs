@@ -15,17 +15,21 @@ use syn::{
 use quote::{quote, ToTokens};
 
 use crate::{
-    params::{MacroParameterActionKind, MacroParameters},
+    MACRO_MAYBE_NAME,
+    params::MacroParameters,
     utils::{make_attr_from_str, unwrap_or_error},
     visit_ext::Visitor,
     visitor_async::AsyncAwaitVisitor,
     visitor_content::ContentVisitor,
 };
 
+#[cfg(feature="debug")]
+use crate::debug::*;
+
 #[derive(Debug, Clone, Copy)]
 pub enum ConvertMode {
-    ToSync,
-    ToAsync,
+    IntoSync,
+    IntoAsync,
 }
 
 pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -36,28 +40,29 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
         return input;
     }
 
+    if let Some(convert_mode) = params.mode_get() {
+        return convert(params, input, convert_mode)
+    }
+
+    #[cfg(feature="debug")]
+    dump_tokens("maybe before", &input);
+
     let mut tokens = TokenStream::new();
 
-    for action in &params.actions {
+    for version in &params.versions {
         let mut ts = TokenStream2::new();
 
-        match action.kind {
-            MacroParameterActionKind::Async | MacroParameterActionKind::Sync => {
-                let _ = unwrap_or_error!(action
+        match version.kind {
+            ConvertMode::IntoAsync | ConvertMode::IntoSync => {
+                let _ = unwrap_or_error!(version
                     .params
                     .extend_tokenstream2_with_cfg_outer_attrs(&mut ts));
-
-                let inner_macro_fn = match action.kind {
-                    MacroParameterActionKind::Async => "__convert_into_async",
-                    MacroParameterActionKind::Sync => "__convert_into_sync",
-                };
-
-                let name = params.make_self_path(inner_macro_fn);
-                let args = action.params.to_tokens();
+                let name = params.make_self_path(MACRO_MAYBE_NAME);
+                let args = version.params.to_tokens(Some(version.kind));
                 ts.extend(quote!(#[#name(#args)]));
 
                 let _ =
-                    unwrap_or_error!(action.params.extend_tokenstream2_with_inner_attrs(&mut ts));
+                    unwrap_or_error!(version.params.extend_tokenstream2_with_inner_attrs(&mut ts));
             }
         }
 
@@ -66,13 +71,19 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
         tokens.extend(input.clone());
     }
 
+    #[cfg(feature="debug")]
+    dump_tokens("maybe after", &tokens);
+
     tokens
 }
 
-pub fn convert(args: TokenStream, input: TokenStream, convert_mode: ConvertMode) -> TokenStream {
+pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: ConvertMode) -> TokenStream {
 
-    let mut params = unwrap_or_error!(MacroParameters::from_tokens(args));
+//    let mut params = unwrap_or_error!(MacroParameters::from_tokens(args));
     let ts;
+
+    #[cfg(feature="debug")]
+    dump_tokens("convert before", &input);
 
     let mut file = parse_macro_input!(input as File);
     for item in &mut file.items {
@@ -89,6 +100,9 @@ pub fn convert(args: TokenStream, input: TokenStream, convert_mode: ConvertMode)
         }
     }
     ts = quote!(#file);
+
+    #[cfg(feature="debug")]
+    dump_tokens2("convert after", &ts);
 
     ts.into()
 }
@@ -108,7 +122,7 @@ fn convert_impl(params: &mut MacroParameters, item: &mut ItemImpl, convert_mode:
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
 
     match convert_mode {
-        ConvertMode::ToSync => {
+        ConvertMode::IntoSync => {
             for inner in &mut item.items {
                 if let ImplItem::Method(ref mut method) = inner {
                     if method.sig.asyncness.is_some() {
@@ -117,7 +131,7 @@ fn convert_impl(params: &mut MacroParameters, item: &mut ItemImpl, convert_mode:
                 }
             }
         }
-        ConvertMode::ToAsync => {
+        ConvertMode::IntoAsync => {
             if let Some(send) = send {
                 let attr_str = if send {
                     "async_trait::async_trait"
@@ -153,7 +167,7 @@ fn convert_trait(params: &mut MacroParameters, item: &mut ItemTrait, convert_mod
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
 
     match convert_mode {
-        ConvertMode::ToSync => {
+        ConvertMode::IntoSync => {
             for inner in &mut item.items {
                 if let TraitItem::Method(ref mut method) = inner {
                     if method.sig.asyncness.is_some() {
@@ -162,7 +176,7 @@ fn convert_trait(params: &mut MacroParameters, item: &mut ItemTrait, convert_mod
                 }
             }
         }
-        ConvertMode::ToAsync => {}
+        ConvertMode::IntoAsync => {}
     }
 
     visitor.visit_item_trait_mut(item)
@@ -174,12 +188,12 @@ fn convert_fn(params: &mut MacroParameters, item: &mut ItemFn, convert_mode: Con
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
 
     match convert_mode {
-        ConvertMode::ToSync => {
+        ConvertMode::IntoSync => {
             if item.sig.asyncness.is_some() {
                 item.sig.asyncness = None;
             }
         }
-        ConvertMode::ToAsync => {}
+        ConvertMode::IntoAsync => {}
     }
 
     visitor.visit_item_fn_mut(item)
@@ -192,8 +206,14 @@ fn convert_use(params: &mut MacroParameters, item: &mut ItemUse, convert_mode: C
 
 pub fn content(body: TokenStream) -> TokenStream {
 
-    let mut visitor = Visitor::new(ContentVisitor::new());
-    let s: TokenStream = visitor.process(body.into()).into();
+    #[cfg(feature="debug")]
+    dump_tokens("content before", &body);
 
-    s
+    let mut visitor = Visitor::new(ContentVisitor::new());
+    let ts: TokenStream = visitor.process(body.into()).into();
+
+    #[cfg(feature="debug")]
+    dump_tokens("content after", &ts);
+
+    ts
 }

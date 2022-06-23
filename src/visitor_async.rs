@@ -198,7 +198,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
 
     fn process_expr(&mut self, node: &mut Expr) -> syn::Result<()> {
         match self.convert_mode {
-            ConvertMode::ToSync => {
+            ConvertMode::IntoSync => {
                 // async -> sync, remove async_impl blocks
                 match node {
                     Expr::Await(expr) => {
@@ -225,7 +225,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                     _ => {}
                 }
             }
-            ConvertMode::ToAsync => {
+            ConvertMode::IntoAsync => {
                 // stay async, just remove sync_impl blocks
                 match node {
                     _ => {}
@@ -238,7 +238,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
 
     fn process_item(&mut self, node: &mut Item) -> syn::Result<()> {
         match self.convert_mode {
-            ConvertMode::ToSync => {
+            ConvertMode::IntoSync => {
                 // find generic parameter of Future and replace it with its Output type
                 if let Item::Fn(item_fn) = node {
                     let mut gens: HashMap<String, PathSegment> = HashMap::new();
@@ -329,7 +329,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
                     };
                 }
             }
-            ConvertMode::ToAsync => {}
+            ConvertMode::IntoAsync => {}
         };
 
         Ok(())
@@ -337,7 +337,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
 
     fn after_process_item(&mut self, node: &mut Item) -> syn::Result<()> {
         match self.convert_mode {
-            ConvertMode::ToSync => {
+            ConvertMode::IntoSync => {
                 // find generic parameter of Future and replace it with its Output type
                 if let Item::Fn(_item_fn) = node {
                     self.generics.pop();

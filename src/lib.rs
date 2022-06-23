@@ -182,7 +182,11 @@ mod visit_ext;
 mod visitor_async;
 mod visitor_content;
 
+#[cfg(feature="debug")]
+mod debug;
+
 const DEFAULT_CRATE_NAME: &'static str = "maybe_async_cfg";
+const MACRO_MAYBE_NAME: &'static str = "maybe";
 const STANDARD_MACROS: &'static [&'static str] = &[
     "dbg",
     "print",
@@ -501,19 +505,19 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
     macros::maybe(args, input)
 }
 
-/// Process marked async code. **Internal macro, don't use directly.** 
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn __convert_into_async(args: TokenStream, input: TokenStream) -> TokenStream {
-    macros::convert(args, input, macros::ConvertMode::ToAsync)
-}
+// /// Process marked async code. **Internal macro, don't use directly.** 
+// #[proc_macro_error]
+// #[proc_macro_attribute]
+// pub fn __convert_into_async(args: TokenStream, input: TokenStream) -> TokenStream {
+//     macros::convert(args, input, macros::ConvertMode::ToAsync)
+// }
 
-/// Convert marked async code to sync code. **Internal macro, don't use directly.** 
-#[proc_macro_error]
-#[proc_macro_attribute]
-pub fn __convert_into_sync(args: TokenStream, input: TokenStream) -> TokenStream {
-    macros::convert(args, input, macros::ConvertMode::ToSync)
-}
+// /// Convert marked async code to sync code. **Internal macro, don't use directly.** 
+// #[proc_macro_error]
+// #[proc_macro_attribute]
+// pub fn __convert_into_sync(args: TokenStream, input: TokenStream) -> TokenStream {
+//     macros::convert(args, input, macros::ConvertMode::ToSync)
+// }
 
 /// Marks conditional content that should only be used in the specified version of the code.
 #[proc_macro_error]

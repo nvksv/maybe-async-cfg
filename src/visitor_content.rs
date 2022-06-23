@@ -31,7 +31,7 @@ impl ContentVisitor {
 
         MacroParameters::apply_parent(&mut params, &self.params)?;
 
-        let tokens = params.to_tokens();
+        let tokens = params.to_tokens(None);
         node.tokens = quote!((#tokens));
 
         Ok(())
@@ -85,7 +85,7 @@ impl ContentVisitor {
                 Err(_) => return ts,
             };
 
-            return params.to_tokens().into();
+            return params.to_tokens(None).into();
         }
 
         let mut iter = ts.into_iter();
