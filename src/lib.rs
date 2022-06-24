@@ -57,7 +57,7 @@
 //!
 //!     ```toml
 //!     [dependencies]
-//!     maybe_async_cfg = "0.1"
+//!     maybe_async_cfg = "0.2"
 //!
 //!     [features]
 //!     use_sync = []
@@ -164,7 +164,7 @@
 //! 
 //! - [fMeow/maybe-async-rs](https://github.com/fMeow/maybe-async-rs)
 //! 
-//! - [marioortizmanero/maybe-async-rs](https://github.com/fMeow/maybe-async-rs)
+//! - [marioortizmanero/maybe-async-rs](https://github.com/marioortizmanero/maybe-async-rs)
 //! 
 //! Thanks!
 //!
@@ -387,6 +387,10 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///
 ///     Do not change name of item to which attribute `maybe` refers.
 ///
+/// - `self`
+/// 
+///     Defines the name that will be assigned to the item in this variant.
+/// 
 /// - `send`
 ///
 ///     If `send = "Send"` or `send = "true"` is present, the attribute

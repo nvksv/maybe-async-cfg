@@ -9,3 +9,5 @@ Cargo.lock
 !/.gitignore
 !/.rustfmt.toml
 !/.versionrc
+!/.github/**
+

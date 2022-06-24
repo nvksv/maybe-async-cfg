@@ -1,6 +1,5 @@
 <!-- cargo-sync-readme start -->
 
-
 # Maybe-Async-Cfg Procedure Macro
 
 **Why bother writing similar code twice for blocking and async code?**
@@ -8,7 +7,7 @@
 [![Build Status](https://github.com/nvksv/maybe-async-cfg/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/nvksv/maybe-async-cfg/actions)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Latest Version](https://img.shields.io/crates/v/maybe-async-cfg.svg)](https://crates.io/crates/maybe-async-cfg)
-[![maybe-async](https://docs.rs/maybe-async-cfg/badge.svg)](https://docs.rs/maybe-async-cfg)
+[![Docs](https://docs.rs/maybe-async-cfg/badge.svg)](https://docs.rs/maybe-async-cfg)
 
 When implementing both sync and async versions of API in a crate, most API of the two version
 are almost the same except for some async/await keyword.
@@ -59,7 +58,7 @@ enabled for your crate, with **async first** policy.
 
     ```toml
     [dependencies]
-    maybe_async_cfg = "0.1"
+    maybe_async_cfg = "0.2"
 
     [features]
     use_sync = []
@@ -166,7 +165,7 @@ This crate is a redesigned fork of these wonderful crates:
 
 - [fMeow/maybe-async-rs](https://github.com/fMeow/maybe-async-rs)
 
-- [marioortizmanero/maybe-async-rs](https://github.com/fMeow/maybe-async-rs)
+- [marioortizmanero/maybe-async-rs](https://github.com/marioortizmanero/maybe-async-rs)
 
 Thanks!
 
