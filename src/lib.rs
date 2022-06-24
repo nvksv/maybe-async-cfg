@@ -112,12 +112,18 @@
 //!         idents(Foo, Bar),
 //!     )]
 //!
-//!     #[maybe_async_cfg::maybe(sync(feature="use_sync"), async(feature="use_async"))]
+//!     #[maybe_async_cfg::maybe(
+//!         sync(feature="use_sync"), 
+//!         async(feature="use_async")
+//!     )]
 //!     struct Struct {
 //!         f: Foo,
 //!     }
 //!
-//!     #[maybe_async_cfg::maybe(sync(feature="use_sync"), async(feature="use_async"))]
+//!     #[maybe_async_cfg::maybe(
+//!         sync(feature="use_sync"), 
+//!         async(feature="use_async")
+//!     )]
 //!     async fn func(b: Bar) {
 //!         todo!()
 //!     }
