@@ -2,15 +2,17 @@
 use std::{collections::HashMap, iter::FromIterator};
 
 #[allow(unused_imports)]
-use proc_macro::TokenStream;
+use proc_macro::{TokenStream};
+use proc_macro2::Span;
 use quote::{quote, ToTokens};
 use syn::visit_mut::VisitMut;
 
 use crate::{
     MACRO_NOOP_NAME, MACRO_REMOVE_NAME, MACRO_ONLY_IF_NAME, MACRO_REMOVE_IF_NAME,
     params::{ConvertMode, MacroParameters},
-    utils::{AttributeArgsInParens, PunctuatedList},
+    utils::{AttributeArgsInParens, PunctuatedList, EqStr, make_path},
     visit_ext::{IdentMode, VisitMutExt, Visitor},
+    doctests::process_doctests,
 };
 
 pub struct AsyncAwaitVisitor<'p> {
@@ -149,7 +151,114 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
+    fn process_doc_attrs(&mut self, attrs: &mut Vec<syn::Attribute>) -> syn::Result<()> {
+
+        let mut acc: Vec<syn::Attribute> = vec![];
+        let mut acc_temp: Vec<syn::Attribute> = vec![];
+        let mut lines: Vec<String> = vec![];
+        let mut inside_doc = false;
+
+        fn process_docs(acc: &mut Vec<syn::Attribute>, acc_temp: &mut Vec<syn::Attribute>, lines: &mut Vec<String>, params: &MacroParameters) {
+            assert!(!lines.is_empty());
+            let mut first = true;
+            let doc: String = lines.iter().map(|s| {
+                if first {
+                    first = false;
+                    s.clone()
+                } else {
+                    let mut ss = String::from("\n");
+                    ss.push_str( s.as_str() );
+                    ss
+                } 
+            }).collect();
+
+            let processor = |key: &str, code: &str| -> Option<Option<String>> {
+//                println!("processor key={key:?} code={code:?}");
+
+                if let Some(param_key) = params.key_get() {
+                    if param_key == key {
+                        Some(Some(code.to_string()))
+                    } else {
+                        Some(None)
+                    }
+                } else {
+                    None
+                }
+            };
+    
+            if let Some(doc) = process_doctests(doc.as_str(), processor) {
+                let mut acc_temp_drain = acc_temp.drain(..);
+                for line in doc.lines() {
+                    let tokens = quote!(= #line);
+                    let attr = if let Some(mut attr) = acc_temp_drain.next() {
+                        attr.tokens = tokens;
+                        attr
+                    } else {
+                        let sp = Span::call_site();
+                        syn::Attribute {
+                            pound_token: syn::Token![#]([sp]),
+                            style: syn::AttrStyle::Outer,
+                            bracket_token: syn::token::Bracket(sp),
+                            path: make_path("doc"),
+                            tokens,
+                        }
+                    };
+                    acc.push(attr);
+                }
+            } else {
+                for attr in acc_temp.drain(..) {
+                    acc.push(attr);
+                }
+            }
+        }
+
+        for attr in attrs.drain(..) {
+            match (inside_doc, attr.path.is_ident("doc")) {
+                (false, false) => {
+                    acc.push(attr);
+                },
+                (false, true) => {
+                    let es = syn::parse2::<EqStr>(attr.tokens.clone())?;
+                    let doc = es.str.value();
+
+                    lines.push(doc);
+                    acc_temp.push(attr);
+                    inside_doc = true;
+                },
+                (true, false) => {
+                    process_docs(&mut acc, &mut acc_temp, &mut lines, &self.params);
+            
+                    acc_temp.clear();
+                    lines.clear();
+                    inside_doc = false;
+
+                    acc.push(attr);
+                },
+                (true, true) => {
+                    let es = syn::parse2::<EqStr>(attr.tokens.clone())?;
+                    let doc = es.str.value();
+
+                    lines.push(doc);
+                    acc_temp.push(attr);
+                }
+            }
+        };
+
+        if inside_doc {
+            process_docs(&mut acc, &mut acc_temp, &mut lines, &self.params);
+        }
+
+        let _ = std::mem::replace(attrs, acc);
+
+        // println!("process_doc_attrs");
+        // println!("{:?}", attrs);
+
+        Ok(())
+    }
+
     fn process_attrs(&mut self, attrs: &mut Vec<syn::Attribute>) -> syn::Result<()> {
+        self.process_doc_attrs(attrs)?;
+
         for attr in attrs.iter_mut() {
             if let Some(name) = self.params.is_our_attr(attr) {
                 match name.as_str() {

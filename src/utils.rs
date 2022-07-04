@@ -181,3 +181,20 @@ impl<T: ToTokens> std::fmt::Debug for OptionToTokens<T> {
         self.0.as_ref().map(|m| DebugByDisplay(m.to_token_stream())).fmt(f)
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct EqStr {
+    pub eq: Token![=],
+    pub str: syn::LitStr,
+}
+
+impl Parse for EqStr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        Ok(EqStr {
+            eq: input.parse()?,
+            str: input.parse()?,
+        })
+    }
+}
+

@@ -188,6 +188,8 @@ mod visit_ext;
 mod visitor_async;
 mod visitor_content;
 
+mod doctests;
+
 mod debug;
 
 const DEFAULT_CRATE_NAME: &'static str = "maybe_async_cfg";
