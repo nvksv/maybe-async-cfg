@@ -7,8 +7,7 @@ use proc_macro::TokenStream;
 
 use proc_macro2::TokenStream as TokenStream2;
 use syn::{
-    parse_macro_input, spanned::Spanned, visit_mut::VisitMut, File, ImplItem, ItemEnum, ItemFn,
-    ItemImpl, ItemStruct, ItemTrait, ItemUse, Type, TypePath, ItemMod,
+    parse_macro_input, spanned::Spanned, visit_mut::VisitMut,
 };
 
 #[allow(unused_imports)]
@@ -17,7 +16,7 @@ use quote::{quote, ToTokens};
 use crate::{
     MACRO_MAYBE_NAME,
     params::{ConvertMode, MacroParameters},
-    utils::{make_attr_from_str, unwrap_or_error},
+    utils::{unwrap_or_error},
     visit_ext::Visitor,
     visitor_async::{
         AsyncAwaitVisitor, remove_asyncness_on_trait, remove_asyncness_on_impl,
@@ -77,7 +76,7 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
 pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: ConvertMode) -> TokenStream {
     dump_tokens!("convert before", &input);
 
-    let mut file = parse_macro_input!(input as File);
+    let mut file = parse_macro_input!(input as syn::File);
     for item in &mut file.items {
         match item {
             syn::Item::Impl(item) => convert_impl(&mut params, item, convert_mode),
@@ -98,9 +97,9 @@ pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: Co
     ts.into()
 }
 
-fn convert_impl(params: &mut MacroParameters, item: &mut ItemImpl, convert_mode: ConvertMode) {
+fn convert_impl(params: &mut MacroParameters, item: &mut syn::ItemImpl, convert_mode: ConvertMode) {
     match &mut *item.self_ty {
-        Type::Path(TypePath { path, .. }) => {
+        syn::Type::Path(syn::TypePath { path, .. }) => {
             if let Some(last) = path.segments.last_mut() {
                 params.original_self_name_set(last.ident.to_string(), false);
             }
@@ -116,21 +115,21 @@ fn convert_impl(params: &mut MacroParameters, item: &mut ItemImpl, convert_mode:
     visitor.visit_item_impl_mut(item)
 }
 
-fn convert_struct(params: &mut MacroParameters, item: &mut ItemStruct, convert_mode: ConvertMode) {
+fn convert_struct(params: &mut MacroParameters, item: &mut syn::ItemStruct, convert_mode: ConvertMode) {
     params.original_self_name_set(item.ident.to_string(), false);
 
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
     visitor.visit_item_struct_mut(item)
 }
 
-fn convert_enum(params: &mut MacroParameters, item: &mut ItemEnum, convert_mode: ConvertMode) {
+fn convert_enum(params: &mut MacroParameters, item: &mut syn::ItemEnum, convert_mode: ConvertMode) {
     params.original_self_name_set(item.ident.to_string(), false);
 
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
     visitor.visit_item_enum_mut(item)
 }
 
-fn convert_trait(params: &mut MacroParameters, item: &mut ItemTrait, convert_mode: ConvertMode) {
+fn convert_trait(params: &mut MacroParameters, item: &mut syn::ItemTrait, convert_mode: ConvertMode) {
     params.original_self_name_set(item.ident.to_string(), false);
 
     if !params.recursive_asyncness_removal_get() {
@@ -141,7 +140,7 @@ fn convert_trait(params: &mut MacroParameters, item: &mut ItemTrait, convert_mod
     visitor.visit_item_trait_mut(item)
 }
 
-fn convert_fn(params: &mut MacroParameters, item: &mut ItemFn, convert_mode: ConvertMode) {
+fn convert_fn(params: &mut MacroParameters, item: &mut syn::ItemFn, convert_mode: ConvertMode) {
     params.original_self_name_set(item.sig.ident.to_string(), true);
 
     if !params.recursive_asyncness_removal_get() {
@@ -152,12 +151,12 @@ fn convert_fn(params: &mut MacroParameters, item: &mut ItemFn, convert_mode: Con
     visitor.visit_item_fn_mut(item)
 }
 
-fn convert_use(params: &mut MacroParameters, item: &mut ItemUse, convert_mode: ConvertMode) {
+fn convert_use(params: &mut MacroParameters, item: &mut syn::ItemUse, convert_mode: ConvertMode) {
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));
     visitor.visit_item_use_mut(item)
 }
 
-fn convert_mod(params: &mut MacroParameters, item: &mut ItemMod, convert_mode: ConvertMode) {
+fn convert_mod(params: &mut MacroParameters, item: &mut syn::ItemMod, convert_mode: ConvertMode) {
     params.original_self_name_set(item.ident.to_string(), true);
 
     let mut visitor = Visitor::new(AsyncAwaitVisitor::new(params, convert_mode));

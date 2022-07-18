@@ -46,6 +46,9 @@ pub trait VisitMutExt {
     fn process_item_trait(&mut self, _node: &mut syn::ItemTrait) -> syn::Result<()> {
         Ok(())
     }
+    fn process_item_fn(&mut self, _node: &mut syn::ItemFn) -> syn::Result<()> {
+        Ok(())
+    }
     fn process_macro(&mut self, _node: &mut syn::Macro) -> syn::Result<()> {
         Ok(())
     }
@@ -243,7 +246,7 @@ impl<T> VisitMut for Visitor<T> where Self: VisitMutExt,
     impl_fn!(visit_item_const_mut,          syn::ItemConst,         { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_enum_mut,           syn::ItemEnum,          { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_extern_crate_mut,   syn::ItemExternCrate,   { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); process_ident(node.rename as Some((_, value)), IdentMode::Other); });
-    impl_fn!(visit_item_fn_mut,             syn::ItemFn,            { process_attrs(node.attrs); });
+    impl_fn!(visit_item_fn_mut,             syn::ItemFn,            { process_attrs(node.attrs); process_item_fn(node); });
     impl_fn!(visit_item_foreign_mod_mut,    syn::ItemForeignMod,    { process_attrs(node.attrs); });
     impl_fn!(visit_item_impl_mut,           syn::ItemImpl,          { process_attrs(node.attrs); process_item_impl(node); });
     impl_fn!(visit_item_macro_mut,          syn::ItemMacro,         { process_attrs(node.attrs); process_ident(node.ident as Some(value), IdentMode::Other); });

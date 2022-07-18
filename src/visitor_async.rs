@@ -500,6 +500,30 @@ impl<'p> AsyncAwaitVisitor<'p> {
         Ok(())
     }
 
+    fn process_item_impl(&mut self, node: &mut syn::ItemImpl) -> syn::Result<()> {
+        if self.params.recursive_asyncness_removal_get() {
+            remove_asyncness_on_impl( node, self.convert_mode, self.params.send_get() );
+        };
+
+        Ok(())
+    }
+
+    fn process_item_trait(&mut self, node: &mut syn::ItemTrait) -> syn::Result<()> {
+        if self.params.recursive_asyncness_removal_get() {
+            remove_asyncness_on_trait( node, self.convert_mode );
+        };
+
+        Ok(())
+    }
+
+    fn process_item_fn(&mut self, node: &mut syn::ItemFn) -> syn::Result<()> {
+        if self.params.recursive_asyncness_removal_get() {
+            remove_asyncness_on_fn( node, self.convert_mode );
+        };
+
+        Ok(())
+    }
+
     fn process_path_segment(&mut self, node: &mut syn::PathSegment) -> syn::Result<()> {
         let ident = &mut node.ident;
         let ident_s = ident.to_string();
@@ -579,6 +603,15 @@ impl<'p> VisitMutExt for Visitor<AsyncAwaitVisitor<'p>> {
     }
     fn process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         self.inner.process_item(node)
+    }
+    fn process_item_impl(&mut self, node: &mut syn::ItemImpl) -> syn::Result<()> {
+        self.inner.process_item_impl(node)
+    }
+    fn process_item_trait(&mut self, node: &mut syn::ItemTrait) -> syn::Result<()> {
+        self.inner.process_item_trait(node)
+    }
+    fn process_item_fn(&mut self, node: &mut syn::ItemFn) -> syn::Result<()> {
+        self.inner.process_item_fn(node)
     }
     fn after_process_item(&mut self, node: &mut syn::Item) -> syn::Result<()> {
         self.inner.after_process_item(node)
