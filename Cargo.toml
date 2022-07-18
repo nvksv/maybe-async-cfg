@@ -22,7 +22,7 @@ proc-macro-error = "1.0"
   [dependencies.pulldown-cmark]
   version = "0.9"
   default-features = false
-  optional = true
+#  optional = true
 
 [lib]
 proc-macro = true

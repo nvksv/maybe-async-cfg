@@ -5,12 +5,12 @@ use std::{collections::HashMap, iter::FromIterator};
 use proc_macro::{TokenStream};
 use proc_macro2::Span;
 use quote::{quote, ToTokens};
-use syn::visit_mut::VisitMut;
+use syn::{visit_mut::VisitMut, spanned::Spanned};
 
 use crate::{
     MACRO_NOOP_NAME, MACRO_REMOVE_NAME, MACRO_ONLY_IF_NAME, MACRO_REMOVE_IF_NAME,
     params::{ConvertMode, MacroParameters},
-    utils::{AttributeArgsInParens, PunctuatedList, EqStr, make_path},
+    utils::{AttributeArgsInParens, PunctuatedList, EqStr, make_path, make_attr_from_str},
     visit_ext::{IdentMode, VisitMutExt, Visitor},
     doctests::process_doctests,
 };
@@ -59,6 +59,57 @@ fn search_future_trait_bound(bound: &syn::TypeParamBound) -> Option<syn::PathSeg
     };
 
     None
+}
+
+pub fn remove_asyncness_on_trait(item: &mut syn::ItemTrait, convert_mode: ConvertMode) {
+    match convert_mode {
+        ConvertMode::IntoSync => {
+            for inner in &mut item.items {
+                if let syn::TraitItem::Method(ref mut method) = inner {
+                    if method.sig.asyncness.is_some() {
+                        method.sig.asyncness = None;
+                    }
+                }
+            }
+        }
+        ConvertMode::IntoAsync => {}
+    }
+}
+
+pub fn remove_asyncness_on_impl(item: &mut syn::ItemImpl, convert_mode: ConvertMode, send: Option<bool>) {
+    match convert_mode {
+        ConvertMode::IntoSync => {
+            for inner in &mut item.items {
+                if let syn::ImplItem::Method(ref mut method) = inner {
+                    if method.sig.asyncness.is_some() {
+                        method.sig.asyncness = None;
+                    }
+                }
+            }
+        }
+        ConvertMode::IntoAsync => {
+            if let Some(send) = send {
+                let attr_str = if send {
+                    "async_trait::async_trait"
+                } else {
+                    "async_trait::async_trait(?Send)"
+                };
+                let attr = make_attr_from_str(attr_str, item.span()).unwrap();
+                item.attrs.push(attr);
+            }
+        }
+    }
+}
+
+pub fn remove_asyncness_on_fn(item: &mut syn::ItemFn, convert_mode: ConvertMode) {
+    match convert_mode {
+        ConvertMode::IntoSync => {
+            if item.sig.asyncness.is_some() {
+                item.sig.asyncness = None;
+            }
+        }
+        ConvertMode::IntoAsync => {}
+    }
 }
 
 impl<'p> AsyncAwaitVisitor<'p> {
@@ -173,8 +224,6 @@ impl<'p> AsyncAwaitVisitor<'p> {
             }).collect();
 
             let processor = |key: &str, code: &str| -> Option<Option<String>> {
-//                println!("processor key={key:?} code={code:?}");
-
                 if let Some(param_key) = params.key_get() {
                     if param_key == key {
                         Some(Some(code.to_string()))
@@ -249,9 +298,6 @@ impl<'p> AsyncAwaitVisitor<'p> {
         }
 
         let _ = std::mem::replace(attrs, acc);
-
-        // println!("process_doc_attrs");
-        // println!("{:?}", attrs);
 
         Ok(())
     }

@@ -47,7 +47,7 @@ impl ConvertMode {
 
 #[derive(Debug, Clone)]
 pub struct IdentRecord {
-    pub fn_mode: bool,
+    pub snake_case: bool,
     pub use_mode: bool,
     pub keep: bool,
     pub ident_sync: Option<String>,
@@ -58,7 +58,7 @@ pub struct IdentRecord {
 impl IdentRecord {
     pub fn new() -> Self {
         Self {
-            fn_mode: false,
+            snake_case: false,
             use_mode: false,
             keep: false,
             ident_sync: None,
@@ -67,9 +67,9 @@ impl IdentRecord {
         }
     }
 
-    pub fn with_fn_mode( fn_mode: bool ) -> Self {
+    pub fn with_snake_case( snake_case: bool ) -> Self {
         Self {
-            fn_mode,
+            snake_case,
             use_mode: false,
             keep: false,
             ident_sync: None,
@@ -104,7 +104,7 @@ impl IdentRecord {
             }
         };
 
-        let suffix = match (self.fn_mode, convert_mode) {
+        let suffix = match (self.snake_case, convert_mode) {
             (false, ConvertMode::IntoAsync) => "Async",
             (false, ConvertMode::IntoSync) => "Sync",
             (true, ConvertMode::IntoAsync) => "_async",
@@ -117,8 +117,8 @@ impl IdentRecord {
     pub fn to_nestedmeta(&self, name: &str) -> syn::NestedMeta {
         let mut nested = Punctuated::<syn::NestedMeta, syn::token::Comma>::new();
         
-        if self.fn_mode {
-            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("fn"))));
+        if self.snake_case {
+            nested.push(syn::NestedMeta::Meta(syn::Meta::Path(make_path("snake"))));
         };
     
         if self.use_mode {
@@ -177,6 +177,7 @@ pub struct MacroParameters {
     prefix: Option<String>,
     idents: HashMap<String, IdentRecord>,
     send: Option<bool>,
+    recursive_asyncness_removal: bool,
     // groups
     cfg: Option<Meta>,
     outer_attrs: Punctuated<NestedMeta, Comma>,
@@ -197,6 +198,7 @@ impl std::fmt::Debug for MacroParameters {
            .field("prefix", &self.prefix)
            .field("idents", &self.idents)
            .field("send", &self.send)
+           .field("recursive_asyncness_removal", &self.recursive_asyncness_removal)
            .field("keep_self", &self.keep_self)
            .field("cfg", &OptionToTokens(self.cfg.as_ref()))
            .field("outer_attrs", &DebugByDisplay(self.outer_attrs.to_token_stream()))
@@ -488,8 +490,8 @@ impl MacroParameters {
         self.to_nestedmeta(add_mode).to_token_stream()
     }
 
-    pub fn default_ident_record(&self, fn_mode: bool) -> IdentRecord {
-        IdentRecord::with_fn_mode( fn_mode )
+    pub fn default_ident_record(&self, snake_case: bool) -> IdentRecord {
+        IdentRecord::with_snake_case( snake_case )
     }
 
     pub fn apply_parent(child: &mut MacroParameters, parent: &MacroParameters) -> syn::Result<()> {
@@ -532,10 +534,10 @@ impl MacroParameters {
         self.key.as_ref().map(|s| s.as_str())
     }
 
-    pub fn original_self_name_set<S: AsRef<str>>(&mut self, name: S, fn_mode: bool) {
+    pub fn original_self_name_set<S: AsRef<str>>(&mut self, name: S, snake_case: bool) {
         if !self.keep_self {
             if self.idents.get(name.as_ref()).is_none() {
-                let mut ir = self.default_ident_record(fn_mode);
+                let mut ir = self.default_ident_record(snake_case);
     
                 if let Some(key) = &self.key {
                     if let Some(self_name) = &self.self_name {
@@ -563,6 +565,10 @@ impl MacroParameters {
 
     pub fn send_get(&self) -> Option<bool> {
         self.send
+    }
+
+    pub fn recursive_asyncness_removal_get(&self) -> bool {
+        self.recursive_asyncness_removal
     }
 
     pub fn idents_get<'s, S: AsRef<str>>(&'s self, name: S) -> Option<&'s IdentRecord> {
@@ -656,6 +662,7 @@ impl MacroParametersBuilder {
                 idents: HashMap::new(),
                 keep_self: false,
                 send: None,
+                recursive_asyncness_removal: true,
                 cfg: None,
                 outer_attrs: Punctuated::new(),
                 inner_attrs: Punctuated::new(),
@@ -736,8 +743,8 @@ impl MacroParametersBuilder {
                                     ))?
                                     .to_string();
                                 match iname.as_str() {
-                                    "fn" => {
-                                        ir.fn_mode = true;
+                                    "snake" | "fn" | "mod" => {
+                                        ir.snake_case = true;
                                     }
                                     "use" => {
                                         ir.use_mode = true;
@@ -754,7 +761,7 @@ impl MacroParametersBuilder {
                                     _ => {
                                         return Err(syn::Error::new_spanned(
                                             nm.to_token_stream(),
-                                            "Expected fn, use, keep, sync, async",
+                                            "Expected snake, fn, mod, use, keep, sync, async",
                                         ))
                                     }
                                 }

@@ -40,6 +40,12 @@ pub trait VisitMutExt {
     fn process_item(&mut self, _node: &mut syn::Item) -> syn::Result<()> {
         Ok(())
     }
+    fn process_item_impl(&mut self, _node: &mut syn::ItemImpl) -> syn::Result<()> {
+        Ok(())
+    }
+    fn process_item_trait(&mut self, _node: &mut syn::ItemTrait) -> syn::Result<()> {
+        Ok(())
+    }
     fn process_macro(&mut self, _node: &mut syn::Macro) -> syn::Result<()> {
         Ok(())
     }
@@ -239,13 +245,13 @@ impl<T> VisitMut for Visitor<T> where Self: VisitMutExt,
     impl_fn!(visit_item_extern_crate_mut,   syn::ItemExternCrate,   { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); process_ident(node.rename as Some((_, value)), IdentMode::Other); });
     impl_fn!(visit_item_fn_mut,             syn::ItemFn,            { process_attrs(node.attrs); });
     impl_fn!(visit_item_foreign_mod_mut,    syn::ItemForeignMod,    { process_attrs(node.attrs); });
-    impl_fn!(visit_item_impl_mut,           syn::ItemImpl,          { process_attrs(node.attrs); });
+    impl_fn!(visit_item_impl_mut,           syn::ItemImpl,          { process_attrs(node.attrs); process_item_impl(node); });
     impl_fn!(visit_item_macro_mut,          syn::ItemMacro,         { process_attrs(node.attrs); process_ident(node.ident as Some(value), IdentMode::Other); });
     impl_fn!(visit_item_macro2_mut,         syn::ItemMacro2,        { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_mod_mut,            syn::ItemMod,           { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_static_mut,         syn::ItemStatic,        { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_struct_mut,         syn::ItemStruct,        { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
-    impl_fn!(visit_item_trait_mut,          syn::ItemTrait,         { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
+    impl_fn!(visit_item_trait_mut,          syn::ItemTrait,         { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); process_item_trait(node); });
     impl_fn!(visit_item_trait_alias_mut,    syn::ItemTraitAlias,    { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_type_mut,           syn::ItemType,          { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
     impl_fn!(visit_item_union_mut,          syn::ItemUnion,         { process_attrs(node.attrs); process_ident(node.ident, IdentMode::Other); });
