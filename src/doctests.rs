@@ -79,8 +79,6 @@ fn paste_code(new_lang: &str, code: &str, indent: Option<&str>) -> String {
         }).collect();        
     }
 
-//    println!("paste_code: {:?}", &res);
-
     res
 }
 
@@ -114,8 +112,6 @@ fn get_indent_from_content(content: &str) -> Option<String> {
 
 pub fn process_doctests(doc: &str, processor: impl Fn(&str, &str) -> Option<Option<String>>) -> Option<String> {
     let parser = Parser::new(doc);
-
-//    println!("process_doctests: {:?}", doc);
 
     let mut prev_offset = 0usize;
     let mut level = 0usize;

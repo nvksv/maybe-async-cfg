@@ -78,7 +78,7 @@
 //!     Wanna convert async code to sync? Specify the `sync` parameter with the condition when the
 //! sync code should be generated.
 //!
-//!     ```rust, no_run
+//!     ```rust
 //!     #[maybe_async_cfg::maybe(
 //!         idents(Foo),
 //!         sync(feature="use_sync"),
@@ -87,10 +87,9 @@
 //!     struct Struct {
 //!         f: Foo,
 //!     }
-//!
 //!     ```
 //!     After convertation:
-//!     ```rust, no_run
+//!     ```rust
 //!     #[cfg(feature="use_sync")]
 //!     struct StructSync {
 //!         f: FooSync,
@@ -106,7 +105,7 @@
 //!     The `content` macro allows you to specify common parameters for many `maybe` macros. Use the
 //! internal `default` attribute with the required parameters inside the `content` macro.
 //!
-//!     ```rust, no_run
+//!     ```rust
 //!     maybe_async_cfg::content!{
 //!     #![maybe_async_cfg::default(
 //!         idents(Foo, Bar),
@@ -130,7 +129,7 @@
 //!     } // content!
 //!     ```
 //!     After convertation:
-//!     ```rust, no_run
+//!     ```rust
 //!     #[cfg(feature="use_sync")]
 //!     struct StructSync {
 //!         f: FooSync,
@@ -149,7 +148,51 @@
 //!         todo!()
 //!     }
 //!     ```
+//!
+//! ## Doctests
 //!     
+//! When writing doctests, you can mark them as applicable only in the corresponding code version. 
+//! To do this, specify `only_if(`_VARIANT_KEY_`)` in the doctest attributes. Then in all other
+//! versions of the code, this doctest will be replaced with an empty string.
+//! 
+//! ```rust
+//! #[maybe_async_cfg::maybe(
+//!     idents(Foo),
+//!     sync(feature="use_sync"),
+//!     async(feature="use_async")
+//! )]
+//! /// This is a structure. 
+//! /// ```rust, only_if(sync)
+//! /// let s = StructSync{ f: FooSync::new() };
+//! /// ```
+//! /// ```rust, only_if(async)
+//! /// let s = StructAsync{ f: FooAsync::new().await };
+//! /// ```
+//! struct Struct {
+//!     f: Foo,
+//! }
+//! ```
+//! After convertation:
+//! ```rust
+//! #[cfg(feature="use_sync")]
+//! /// This is a structure. 
+//! /// ```rust, only_if(sync)
+//! /// let s = StructSync{ f: FooSync::new() };
+//! /// ```
+//! ///
+//! struct StructSync {
+//! f: FooSync,
+//! }
+//! #[cfg(feature="use_async")]
+//! /// This is a structure. 
+//! ///
+//! /// ```rust, only_if(async)
+//! /// let s = StructAsync{ f: FooAsync::new().await };
+//! /// ```
+//! struct StructAsync {
+//!     f: FooAsync,
+//! }
+//! ```
 //!
 //! ## Examples
 //!
@@ -177,6 +220,9 @@
 //! 
 //! # License
 //! MIT
+#![deny(missing_docs)]
+#![deny(rustdoc::missing_crate_level_docs)]
+#![deny(rustdoc::missing_doc_code_examples)]
 
 use proc_macro::TokenStream;
 use proc_macro_error::proc_macro_error;
@@ -243,12 +289,16 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///
 /// ### Every version has the following parameters:
 ///
+/// - `disable` 
+/// 
+///     Ignore this version entirely.
+/// 
 /// - `key`
 ///
 ///     Defines unique name of the version to use it in `only_if`/`remove_if` conditions. If 
 /// omitted, `sync`/`async` will be used.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
 ///         sync(key="foo", feature="use_sync"),
 ///         async(key="bar", feature="use_async"),
@@ -262,7 +312,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     }
 ///     ```
 ///     After convertation:
-///     ```rust, no_run 
+///     ```rust 
 ///     #[cfg(feature="use_sync")]
 ///     struct StructSync {
 ///         f: usize,
@@ -281,7 +331,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     Note: conditions like `feature = "..."`, `not(...)`, `all(...)`, `any(...)` will be 
 /// processed correctly, even if the `cfg(...)` was omitted.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
 ///         sync(cfg(feature="use_sync")),
 ///         async(feature="use_async")
@@ -289,10 +339,9 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     struct Struct {
 ///         f: Foo,
 ///     }
-///
 ///     ```
 ///     After convertation:
-///     ```rust, no_run
+///     ```rust
 ///     #[cfg(feature="use_sync")]
 ///     struct StructSync {
 ///         f: Foo,
@@ -329,7 +378,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 /// the standard scheme of suffixes used by default. If the parameter value is omitted, 
 /// the identifier will not be renamed in this case.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
 ///         idents(
 ///             Foo,
@@ -358,7 +407,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     }
 ///     ```
 ///     After convertation:
-///     ```rust, no_run
+///     ```rust
 ///     #[cfg(feature="use_sync")]
 ///     fn func_sync() {
 ///         struct FooSync {}
@@ -409,7 +458,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///
 ///     Remove any attributes with specified names.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
 ///         sync(feature="use_sync", drop_attrs(attr)),
 ///         async(feature="use_async"),
@@ -423,7 +472,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     }
 ///     ```
 ///     After convertation:
-///     ```rust, no_run
+///     ```rust
 ///     #[cfg(feature="use_sync")]
 ///     struct StructSync {
 ///         f: usize,
@@ -441,9 +490,9 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///
 ///     Replace one feature name with another.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
-///         sync(feature="use_sync", replace_features(secure(secure_sync))),
+///         sync(feature="use_sync", replace_feature("secure", "secure_sync")),
 ///         async(feature="use_async"),
 ///     )]
 ///     struct Struct {
@@ -454,7 +503,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     }
 ///     ```
 ///     After convertation:
-///     ```rust, no_run
+///     ```rust
 ///     #[cfg(feature="use_sync")]
 ///     struct StructSync {
 ///         f: usize,
@@ -479,7 +528,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 /// 
 ///     Useful for testing: just write `test` in version parameters.
 ///
-///     ```rust, no_run
+///     ```rust
 ///     #[maybe_async_cfg::maybe(
 ///         sync(feature="secure_sync", test, "resource(path = \"/foo/bar\")", outer(xizzy)),
 ///         async(feature="secure_sync", inner(baz(qux), async_attributes::test)),
@@ -489,7 +538,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     }
 ///     ```
 ///     After convertation:
-///     ```rust, no_run
+///     ```rust
 ///     #[xizzy]
 ///     #[cfg(feature="use_sync")]
 ///     #[test]
@@ -516,6 +565,61 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///     - all another parameters will be interpreted as inner attribute for current version (as 
 /// wrapped in `inner(...)`).
 /// 
+/// ### Formal syntax
+/// 
+/// > _ParametersList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_Parameter_ (`,` _Parameter_)<sup>\*</sup>
+/// > 
+/// > _Parameter_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;`disable`\
+/// > &nbsp;&nbsp;|&nbsp;`prefix` `=` _STRING_LITERAL_\
+/// > &nbsp;&nbsp;|&nbsp;(`sync` | `async`) `(` _VersionParametersList_ `)`
+/// >
+/// > _VersionParametersList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_VersionParameter_ (`,` _VersionParameter_)<sup>\*</sup>
+/// > 
+/// > _VersionParameter_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;`disable`\
+/// > &nbsp;&nbsp;|&nbsp;`keep_self`\
+/// > &nbsp;&nbsp;|&nbsp;`key` `=` _STRING_LITERAL_\
+/// > &nbsp;&nbsp;|&nbsp;`feature` `=` _STRING_LITERAL_\
+/// > &nbsp;&nbsp;|&nbsp;`self` `=` _STRING_LITERAL_\
+/// > &nbsp;&nbsp;|&nbsp;`send` `=` (`""` | `"Send"` | `"true"` | `"?Send"` | `"false"`)\
+/// > &nbsp;&nbsp;|&nbsp;(`cfg` | `any` | `all` | `not`) `(` _ANY_CFG_CONDITION_ `)`\
+/// > &nbsp;&nbsp;|&nbsp;`idents` `(` _IdentsList_ `)`\
+/// > &nbsp;&nbsp;|&nbsp;(`outer` | `inner`) `(` _AttributesList_ `)`\
+/// > &nbsp;&nbsp;|&nbsp;`replace_feature` `(` _STRING_LITERAL_ `,` _STRING_LITERAL_ `)`\
+/// > &nbsp;&nbsp;|&nbsp;`drop_attrs` `(` _IdentifiersList_ `)`\
+/// > &nbsp;&nbsp;|&nbsp;_Attribute_
+/// >
+/// > _Path_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_IDENTIFIER_ (`::` _IDENTIFIER_)<sup>\+</sup>
+/// >
+/// > _IdentifiersList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_IDENTIFIER_ (`,` _IDENTIFIER_)<sup>\*</sup>
+/// >
+/// > _IdentsList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_Ident_ (`,` _Ident_)<sup>\*</sup>
+/// >
+/// > _Ident_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_IDENTIFIER_ (`(` _IdentParametersList_ `)`)<sup>\?</sup>
+/// > 
+/// > _IdentParametersList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_IdentParameter_ (`,` _IdentParameter_)<sup>\*</sup>
+/// >
+/// > _IdentParameter_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;`keep`\
+/// > &nbsp;&nbsp;|&nbsp;`use`\
+/// > &nbsp;&nbsp;|&nbsp;(`snake` | `fn` | `mod` )\
+/// > &nbsp;&nbsp;|&nbsp;`use`\
+/// > &nbsp;&nbsp;|&nbsp;(`sync` | `async` | _IDENTIFIER_) (`=` _STRING_LITERAL_)<sup>\?</sup>
+/// >
+/// > _AttributesList_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;_Attribute_ (`,` _Attribute_)<sup>\*</sup>
+/// >
+/// > _Attribute_ :\
+/// > &nbsp;&nbsp;&nbsp;&nbsp;(_IDENTIFIER_ | _Path_) (`(` _ANY_VALID_ARGS_ `)`)<sup>\?</sup>\
+/// > &nbsp;&nbsp;|&nbsp;_STRING_LITERAL_
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn maybe(args: TokenStream, input: TokenStream) -> TokenStream {
@@ -556,7 +660,7 @@ pub fn remove(_: TokenStream, _: TokenStream) -> TokenStream {
 /// The `content` macro allows you to specify common parameters for many `maybe` macros. Use the
 /// internal `default` attribute with the required parameters inside the `content` macro.
 ///
-/// ```rust, no_run
+/// ```rust
 /// maybe_async_cfg::content!{
 /// #![maybe_async_cfg::default(
 ///     idents(Foo, Bar),
@@ -574,7 +678,7 @@ pub fn remove(_: TokenStream, _: TokenStream) -> TokenStream {
 /// } // content!
 /// ```
 /// After convertation:
-/// ```rust, no_run
+/// ```rust
 /// #[cfg(feature="use_sync")]
 /// struct StructSync {
 ///     f: FooSync,

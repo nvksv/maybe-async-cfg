@@ -1,5 +1,6 @@
 <!-- cargo-sync-readme start -->
 
+
 # Maybe-Async-Cfg Procedure Macro
 
 **Why bother writing similar code twice for blocking and async code?**
@@ -7,7 +8,7 @@
 [![Build Status](https://github.com/nvksv/maybe-async-cfg/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/nvksv/maybe-async-cfg/actions)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 [![Latest Version](https://img.shields.io/crates/v/maybe-async-cfg.svg)](https://crates.io/crates/maybe-async-cfg)
-[![Docs](https://docs.rs/maybe-async-cfg/badge.svg)](https://docs.rs/maybe-async-cfg)
+[![maybe-async](https://docs.rs/maybe-async-cfg/badge.svg)](https://docs.rs/maybe-async-cfg)
 
 When implementing both sync and async versions of API in a crate, most API of the two version
 are almost the same except for some async/await keyword.
@@ -79,7 +80,7 @@ features) when your code should be async.
     Wanna convert async code to sync? Specify the `sync` parameter with the condition when the
 sync code should be generated.
 
-    ```rust, no_run
+    ```rust
     #[maybe_async_cfg::maybe(
         idents(Foo),
         sync(feature="use_sync"),
@@ -91,7 +92,7 @@ sync code should be generated.
 
     ```
     After convertation:
-    ```rust, no_run
+    ```rust
     #[cfg(feature="use_sync")]
     struct StructSync {
         f: FooSync,
@@ -107,25 +108,31 @@ sync code should be generated.
     The `content` macro allows you to specify common parameters for many `maybe` macros. Use the
 internal `default` attribute with the required parameters inside the `content` macro.
 
-    ```rust, no_run
+    ```rust
     maybe_async_cfg::content!{
     #![maybe_async_cfg::default(
         idents(Foo, Bar),
     )]
 
-    #[maybe_async_cfg::maybe(sync(feature="use_sync"), async(feature="use_async"))]
+    #[maybe_async_cfg::maybe(
+        sync(feature="use_sync"), 
+        async(feature="use_async")
+    )]
     struct Struct {
         f: Foo,
     }
 
-    #[maybe_async_cfg::maybe(sync(feature="use_sync"), async(feature="use_async"))]
+    #[maybe_async_cfg::maybe(
+        sync(feature="use_sync"), 
+        async(feature="use_async")
+    )]
     async fn func(b: Bar) {
         todo!()
     }
     } // content!
     ```
     After convertation:
-    ```rust, no_run
+    ```rust
     #[cfg(feature="use_sync")]
     struct StructSync {
         f: FooSync,
