@@ -89,7 +89,6 @@ sync code should be generated.
     struct Struct {
         f: Foo,
     }
-
     ```
     After convertation:
     ```rust
@@ -151,7 +150,51 @@ internal `default` attribute with the required parameters inside the `content` m
         todo!()
     }
     ```
+
+## Doctests
     
+When writing doctests, you can mark them as applicable only in the corresponding code version. 
+To do this, specify `only_if(`_VARIANT_KEY_`)` in the doctest attributes. Then in all other
+versions of the code, this doctest will be replaced with an empty string.
+
+```rust
+#[maybe_async_cfg::maybe(
+    idents(Foo),
+    sync(feature="use_sync"),
+    async(feature="use_async")
+)]
+/// This is a structure. 
+/// ```rust, only_if(sync)
+/// let s = StructSync{ f: FooSync::new() };
+/// ```
+/// ```rust, only_if(async)
+/// let s = StructAsync{ f: FooAsync::new().await };
+/// ```
+struct Struct {
+    f: Foo,
+}
+```
+After convertation:
+```rust
+#[cfg(feature="use_sync")]
+/// This is a structure. 
+/// ```rust, only_if(sync)
+/// let s = StructSync{ f: FooSync::new() };
+/// ```
+///
+struct StructSync {
+f: FooSync,
+}
+#[cfg(feature="use_async")]
+/// This is a structure. 
+///
+/// ```rust, only_if(async)
+/// let s = StructAsync{ f: FooAsync::new().await };
+/// ```
+struct StructAsync {
+    f: FooAsync,
+}
+```
 
 ## Examples
 
