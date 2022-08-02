@@ -26,6 +26,7 @@ The `maybe` procedural macro can be applied to the following codes:
 - trait implementation
 - function definition
 - struct and enum definition
+- modules
 
 **RECOMMENDATION**: Enable **resolver ver2** in your crate, which is introduced in Rust 1.51. If
 not, two crates in dependency with conflict version (one async and another blocking) can fail
