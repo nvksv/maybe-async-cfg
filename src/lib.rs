@@ -573,8 +573,10 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 /// > 
 /// > _Parameter_ :\
 /// > &nbsp;&nbsp;&nbsp;&nbsp;`disable`\
+/// > &nbsp;&nbsp;|&nbsp;`keep_self`\
 /// > &nbsp;&nbsp;|&nbsp;`prefix` `=` _STRING_LITERAL_\
 /// > &nbsp;&nbsp;|&nbsp;(`sync` | `async`) `(` _VersionParametersList_ `)`
+/// > &nbsp;&nbsp;|&nbsp;`idents` `(` _IdentsList_ `)`\
 /// >
 /// > _VersionParametersList_ :\
 /// > &nbsp;&nbsp;&nbsp;&nbsp;_VersionParameter_ (`,` _VersionParameter_)<sup>\*</sup>
