@@ -359,10 +359,11 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 ///
 ///     Each identifier can have the following clarifying parameters:
 ///
-///     - `fn`
+///     - `snake`, `fn`, `mod`
 ///
-///         means that this is the name of the function and it should be converted by adding the
-/// suffixes `"_sync"`/`"_async"` (otherwise, the suffixes `"Sync"`/`"Async"` will be used).
+///         means that this is the snake-case name of the function or module and it should be 
+/// converted by adding the suffixes `"_sync"`/`"_async"` (otherwise, the suffixes 
+/// `"Sync"`/`"Async"` will be used).
 ///
 ///     - `use`  
 /// 
@@ -575,7 +576,7 @@ const STANDARD_MACROS: &'static [&'static str] = &[
 /// > &nbsp;&nbsp;&nbsp;&nbsp;`disable`\
 /// > &nbsp;&nbsp;|&nbsp;`keep_self`\
 /// > &nbsp;&nbsp;|&nbsp;`prefix` `=` _STRING_LITERAL_\
-/// > &nbsp;&nbsp;|&nbsp;(`sync` | `async`) `(` _VersionParametersList_ `)`
+/// > &nbsp;&nbsp;|&nbsp;(`sync` | `async`) `(` _VersionParametersList_ `)`\
 /// > &nbsp;&nbsp;|&nbsp;`idents` `(` _IdentsList_ `)`\
 /// >
 /// > _VersionParametersList_ :\
