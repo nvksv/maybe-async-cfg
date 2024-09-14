@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-#[maybe_async_cfg::maybe(send="Send", sync(feature = "is_sync"), async(not(feature = "is_sync"), async_trait::async_trait))]
+#[maybe_async_cfg::maybe(send="Send", sync(feature = "__test__is_sync"), async(not(feature = "__test__is_sync"), async_trait::async_trait))]
 trait Trait {
     fn sync_fn() {}
 
@@ -11,7 +11,7 @@ trait Trait {
     }
 }
 
-#[maybe_async_cfg::maybe(send="?Send", sync(feature = "is_sync"), async(not(feature = "is_sync"), async_trait::async_trait))]
+#[maybe_async_cfg::maybe(send="?Send", sync(feature = "__test__is_sync"), async(not(feature = "__test__is_sync"), async_trait::async_trait))]
 pub trait PubTrait {
     fn sync_fn() {}
 
@@ -22,16 +22,16 @@ pub trait PubTrait {
     }
 }
 
-#[maybe_async_cfg::maybe(keep_self, sync(feature = "is_sync"), async(not(feature = "is_sync")))]
+#[maybe_async_cfg::maybe(keep_self, sync(feature = "__test__is_sync"), async(not(feature = "__test__is_sync")))]
 async fn async_fn() {}
 
-#[maybe_async_cfg::maybe(keep_self, sync(feature = "is_sync"), async(not(feature = "is_sync")))]
+#[maybe_async_cfg::maybe(keep_self, sync(feature = "__test__is_sync"), async(not(feature = "__test__is_sync")))]
 pub async fn pub_async_fn() {
 }
 
 struct Struct;
 
-#[maybe_async_cfg::maybe(keep_self, idents(Trait), sync(feature = "is_sync"), async(not(feature = "is_sync"), async_trait::async_trait))]
+#[maybe_async_cfg::maybe(keep_self, idents(Trait), sync(feature = "__test__is_sync"), async(not(feature = "__test__is_sync"), async_trait::async_trait))]
 impl Trait for Struct {
     fn sync_fn() {}
 
@@ -42,7 +42,7 @@ impl Trait for Struct {
     }
 }
 
-#[cfg(feature = "is_sync")]
+#[cfg(feature = "__test__is_sync")]
 fn main() -> std::result::Result<(), ()> {
     let s = Struct;
     s.declare_async();
@@ -53,7 +53,7 @@ fn main() -> std::result::Result<(), ()> {
 }
 
 
-#[cfg(not(feature = "is_sync"))]
+#[cfg(not(feature = "__test__is_sync"))]
 #[async_std::main]
 async fn main() {
     let s = Struct;

@@ -1,5 +1,5 @@
 #[maybe_async_cfg::maybe(
-    sync(feature = "is_sync"), 
+    sync(feature = "__test__is_sync"),
 )]
 async fn async_fn() -> bool {
     true
@@ -7,8 +7,8 @@ async fn async_fn() -> bool {
 
 #[maybe_async_cfg::maybe(
     idents(async_fn(fn)),
-    sync(feature = "is_sync"), 
-    async(not(feature = "is_sync")),
+    sync(feature = "__test__is_sync"),
+    async(not(feature = "__test__is_sync")),
 )]
 async fn test_async_fn() {
     let res = async_fn().await;

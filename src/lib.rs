@@ -205,7 +205,7 @@
 //!
 //! The example `service_client` is a proof of concept that `maybe_async_cfg` can actually free us
 //! from writing almost the same code for sync and async. We can toggle between a sync AWZ3 client
-//! and async one by `is_sync` feature gate when we add `maybe-async-cfg` to dependency.
+//! and async one by `__test__is_sync` feature gate when we add `maybe-async-cfg` to dependency.
 //!
 //! 
 //! ## Acknowledgements

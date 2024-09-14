@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-maybe_async_cfg::content!{
+maybe_async_cfg::content! {
 
 #![maybe_async_cfg::default(
     idents(
@@ -19,8 +19,8 @@ type Method = String;
 
 /// This will generate two traits: `InnerClientSync` and `InnerClientAsync`
 #[maybe_async_cfg::maybe(
-    sync(feature = "is_sync"), 
-    async(feature = "is_async", async_trait::async_trait),
+    sync(feature = "__test__is_sync"),
+    async(feature = "__test__is_async", async_trait::async_trait),
 )]
 trait InnerClient {
     async fn request(method: Method, url: Url, data: String) -> Response;
@@ -43,11 +43,11 @@ trait InnerClient {
 /// If we had a single `ServiceClient` which implemented both `InnerClientSync`
 /// and `InnerClientAsync`, calls to methods like `request` would be ambiguous
 /// when both async and sync were enabled.
-#[maybe_async_cfg::maybe(sync(feature = "is_sync"), async(feature = "is_async"))]
+#[maybe_async_cfg::maybe(sync(feature = "__test__is_sync"), async(feature = "__test__is_async"))]
 pub struct ServiceClient;
 
 /// Synchronous  implementation.
-#[maybe_async_cfg::maybe(sync(feature = "is_sync"), async(feature = "is_async"))]
+#[maybe_async_cfg::maybe(sync(feature = "__test__is_sync"), async(feature = "__test__is_async"))]
 #[maybe_async_cfg::only_if(sync)]
 impl InnerClient for ServiceClient {
     fn request(method: Method, url: Url, data: String) -> Response {
@@ -59,14 +59,14 @@ impl InnerClient for ServiceClient {
 
 /// Asynchronous implementation only.
 #[maybe_async_cfg::maybe(
-    sync(feature = "is_sync"), 
-    async(feature = "is_async", async_trait::async_trait),
+    sync(feature = "__test__is_sync"),
+    async(feature = "__test__is_async", async_trait::async_trait),
 )]
 #[maybe_async_cfg::only_if(async)]
 impl InnerClient for ServiceClient {
     async fn request(method: Method, url: Url, data: String) -> Response {
         // your implementation for async, like use `reqwest::client` or
-        // `async_std` to send the request
+        // `__test__async_std` to send the request
         String::from("pretend we have a response")
     }
 }
@@ -74,11 +74,11 @@ impl InnerClient for ServiceClient {
 /// Code of upstream API are almost the same for sync and async, except for
 /// async/await keyword. This will generate the same `impl` but for both
 /// `ServiceClientAsync` and `ServiceClientSync`.
-#[maybe_async_cfg::maybe(sync(feature = "is_sync"), async(feature = "is_async"))]
+#[maybe_async_cfg::maybe(sync(feature = "__test__is_sync"), async(feature = "__test__is_async"))]
 impl ServiceClient {
     async fn create_bucket(name: String) -> Response {
         Self::post("http://correct_url4create", String::from("my_bucket")).await
-        // When `is_sync` is toggle on, this block will compiles to:
+        // When `__test__is_sync` is toggle on, this block will compiles to:
         // Self::post("http://correct_url4create", String::from("my_bucket"))
     }
 
@@ -88,14 +88,14 @@ impl ServiceClient {
     // and another thousands of functions that interact with service side
 }
 
-#[maybe_async_cfg::maybe(sync(feature = "is_sync"), async(feature = "is_async"))]
+#[maybe_async_cfg::maybe(sync(feature = "__test__is_sync"), async(feature = "__test__is_async"))]
 #[maybe_async_cfg::only_if(sync)]
 fn run_sync() {
     println!("sync impl running");
     let _ = ServiceClientSync::create_bucket("bucket".to_owned());
 }
 
-#[maybe_async_cfg::maybe(sync(feature = "is_sync"), async(feature = "is_async"))]
+#[maybe_async_cfg::maybe(sync(feature = "__test__is_sync"), async(feature = "__test__is_async"))]
 #[maybe_async_cfg::only_if(async)]
 async fn run_async() {
     println!("async impl running");
@@ -104,10 +104,10 @@ async fn run_async() {
 
 #[tokio::main]
 async fn main() {
-    #[cfg(feature = "is_sync")]
+    #[cfg(feature = "__test__is_sync")]
     run_sync();
 
-    #[cfg(feature = "is_async")]
+    #[cfg(feature = "__test__is_async")]
     run_async().await;
 }
 

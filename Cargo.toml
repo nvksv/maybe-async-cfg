@@ -34,6 +34,10 @@ default = ["doctests"]
 debug = []
 no-debug = []
 doctests = ["pulldown-cmark"]
+__test__async_std = []
+__test__is_async = []
+__test__is_sync = []
+__test__tokio = []
 
 [[test]]
 name = "doctests"
