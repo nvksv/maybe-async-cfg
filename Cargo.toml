@@ -32,5 +32,4 @@ tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
 [features]
 default = ["doctests"]
 debug = []
-no-debug = []
 doctests = ["pulldown-cmark"]
