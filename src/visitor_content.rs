@@ -9,7 +9,7 @@ use quote::quote;
 use crate::{
     params::MacroParameters,
     visit_ext::{VisitMutExt, Visitor},
-    DEFAULT_CRATE_NAME, MACRO_MAYBE_NAME, MACRO_DEFAULT_NAME,
+    DEFAULT_CRATE_NAME, MACRO_DEFAULT_NAME, MACRO_MAYBE_NAME,
 };
 
 pub struct ContentVisitor {
@@ -38,9 +38,10 @@ impl ContentVisitor {
         node.attrs.retain(|attr| {
             if let Some(prefix) = is_default_attr(attr) {
                 // TODO: This bit may not be right
-                if MacroParameters::from_tokens_in_parens(attr.tokens.clone().into()).is_err() {
-                    return false
-                };
+                match MacroParameters::from_tokens_in_parens(attr.tokens.clone().into()) {
+                    Ok(params) => self.params = params,
+                    _ => return false,
+                }
                 self.params.prefix_set(prefix);
                 false
             } else {
