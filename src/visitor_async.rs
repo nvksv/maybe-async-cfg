@@ -70,7 +70,7 @@ pub fn remove_asyncness_on_trait(item: &mut syn::ItemTrait, convert_mode: Conver
     match convert_mode {
         ConvertMode::IntoSync => {
             for inner in &mut item.items {
-                if let syn::TraitItem::Method(ref mut method) = inner {
+                if let syn::TraitItem::Method(method) = inner {
                     if method.sig.asyncness.is_some() {
                         method.sig.asyncness = None;
                     }
@@ -85,7 +85,7 @@ pub fn remove_asyncness_on_impl(item: &mut syn::ItemImpl, convert_mode: ConvertM
     match convert_mode {
         ConvertMode::IntoSync => {
             for inner in &mut item.items {
-                if let syn::ImplItem::Method(ref mut method) = inner {
+                if let syn::ImplItem::Method(method) = inner {
                     if method.sig.asyncness.is_some() {
                         method.sig.asyncness = None;
                     }
@@ -172,7 +172,7 @@ impl<'p> AsyncAwaitVisitor<'p> {
 
         let key = match arg {
             syn::NestedMeta::Lit(syn::Lit::Str(s)) => s.value(),
-            syn::NestedMeta::Meta(syn::Meta::Path(ref p)) => {
+            syn::NestedMeta::Meta(syn::Meta::Path(p)) => {
                 if let Some(s) = p.get_ident() {
                     s.to_string()
                 } else {

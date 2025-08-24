@@ -130,7 +130,7 @@ pub fn process_doctests(doc: &str, processor: impl Fn(&str, &str) -> Option<Opti
 
                 if level == 1 {
                     match match kind {
-                        CodeBlockKind::Fenced(ref lang) => {
+                        CodeBlockKind::Fenced(lang) => {
                             parse_lang(lang)
                         },
                         CodeBlockKind::Indented => {

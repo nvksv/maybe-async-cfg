@@ -312,22 +312,12 @@ impl MacroParameters {
     }
 
     pub fn from_tokens(tokens: TokenStream) -> syn::Result<Self> {
-        let args = match syn::parse_macro_input::parse::<AttributeArgs>(tokens) {
-            Ok(a) => a,
-            Err(e) => return Err(e),
-        };
-
+        let args = syn::parse_macro_input::parse::<AttributeArgs>(tokens)?;
         Self::from_args(&args)
     }
 
     pub fn from_tokens_in_parens(tokens: TokenStream) -> syn::Result<Self> {
-        let aip = match syn::parse_macro_input::parse::<AttributeArgsInParens>(tokens) {
-            Ok(a) => a,
-            Err(e) => {
-                return Err(e);
-            }
-        };
-
+        let aip = syn::parse_macro_input::parse::<AttributeArgsInParens>(tokens)?;
         Self::from_args(&aip.args)
     }
 
@@ -638,7 +628,7 @@ impl MacroParameters {
         }
     }
 
-    pub fn standard_macros<'s>(&'s self) -> &[&'s str] {
+    pub fn standard_macros(&self) -> &[&str] {
         STANDARD_MACROS
     }
 }

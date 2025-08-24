@@ -1,8 +1,8 @@
 [package]
 name = "maybe-async-cfg"
-version = "0.2.5"
+version = "0.3.0"
 authors = [ "Sergey V. Kokorin <nvksv@nvksv.ru>" ]
-edition = "2021"
+edition = "2024"
 readme = "README.md"
 license = "MIT"
 description = "A procedure macro to unify sync and async implementations depending on the features of your crate"
@@ -32,5 +32,4 @@ tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
 [features]
 default = ["doctests"]
 debug = []
-no-debug = []
 doctests = ["pulldown-cmark"]
