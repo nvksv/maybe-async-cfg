@@ -6,8 +6,8 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Comma, Attribute, AttributeArgs, Ident, Lit,
-    LitStr, Meta, MetaNameValue, NestedMeta, MetaList, 
+    punctuated::Punctuated, spanned::Spanned, token::Comma, Attribute, Ident, Lit,
+    LitStr, Meta, MetaNameValue, MetaList, 
 };
 
 use crate::{
@@ -312,12 +312,15 @@ impl MacroParameters {
     }
 
     pub fn from_tokens(tokens: TokenStream) -> syn::Result<Self> {
-        let args = syn::parse_macro_input::parse::<AttributeArgs>(tokens)?;
+        // let args = syn::meta::parser(tokens)?;
+        let logic =  syn::meta::parser(|_| Ok(()) );
+        syn::parse::Parser::parse(logic, tokens);
+        syn::parse_macro_input!(tokens with logic);
         Self::from_args(&args)
     }
 
     pub fn from_tokens_in_parens(tokens: TokenStream) -> syn::Result<Self> {
-        let aip = syn::parse_macro_input::parse::<AttributeArgsInParens>(tokens)?;
+        let aip = syn::parse::<AttributeArgsInParens>(tokens)?;
         Self::from_args(&aip.args)
     }
 

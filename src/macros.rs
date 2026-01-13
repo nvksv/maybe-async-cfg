@@ -4,7 +4,7 @@ use std::iter::FromIterator;
 use proc_macro::TokenStream;
 
 use proc_macro2::TokenStream as TokenStream2;
-use syn::{spanned::Spanned, visit_mut::VisitMut};
+use syn::{spanned::Spanned, visit_mut::VisitMut, parse_macro_input};
 
 #[allow(unused_imports)]
 use quote::{quote, ToTokens};
@@ -70,7 +70,7 @@ pub fn maybe(args: TokenStream, input: TokenStream) -> syn::Result<TokenStream> 
 pub fn convert(mut params: MacroParameters, input: TokenStream, convert_mode: ConvertMode) -> syn::Result<TokenStream> {
     dump_tokens!("convert before", &input);
 
-    let mut file = syn::parse_macro_input::parse::<syn::File>(input)?;
+    let mut file = syn::parse::<syn::File>(input)?;
     for item in &mut file.items {
         match item {
             syn::Item::Impl(item) => convert_impl(&mut params, item, convert_mode),
