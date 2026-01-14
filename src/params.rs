@@ -7,7 +7,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use syn::{
     punctuated::Punctuated, spanned::Spanned, token::Comma, Attribute, Ident, Lit,
-    LitStr, Meta, MetaNameValue, MetaList, 
+    LitStr, Meta, MetaNameValue, MetaList, meta::ParseNestedMeta, parse::ParseBuffer, parenthesized,
 };
 
 use crate::{
@@ -213,110 +213,240 @@ impl std::fmt::Debug for MacroParameters {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-macro_rules! lit_str {
-    ($lit:ident, $obj:expr, $fn:ident, $msg:expr) => {
-        match $lit {
-            syn::Lit::Str(str_val) => $obj.$fn(str_val.value())?,
-            _ => return Err(syn::Error::new_spanned($lit.to_token_stream(), $msg)),
-        }
-    };
-}
+// macro_rules! lit_str {
+//     ($lit:ident, $obj:expr, $fn:ident, $msg:expr) => {
+//         match $lit {
+//             syn::Lit::Str(str_val) => $obj.$fn(str_val.value())?,
+//             _ => return Err(syn::Error::new_spanned($lit.to_token_stream(), $msg)),
+//         }
+//     };
+// }
 
-macro_rules! lit_meta {
-    ($lit:ident, $meta:expr, $obj:expr, $fn:ident, $msg:expr) => {
-        match $lit {
-            syn::Lit::Str(_) => $obj.$fn($meta)?,
-            _ => return Err(syn::Error::new_spanned($lit.to_token_stream(), $msg)),
-        }
-    };
-}
+// macro_rules! lit_meta {
+//     ($lit:ident, $meta:expr, $obj:expr, $fn:ident, $msg:expr) => {
+//         match $lit {
+//             syn::Lit::Str(_) => $obj.$fn($meta)?,
+//             _ => return Err(syn::Error::new_spanned($lit.to_token_stream(), $msg)),
+//         }
+//     };
+// }
 
 impl MacroParameters {
-    #[allow(dead_code)]
-    pub fn new() -> Self {
-        MacroParametersBuilder::new().build().unwrap()
+    fn new() -> Self {
+        Self {
+            mode: None,
+            disable: false,
+            key: None,
+            self_name: None, 
+            prefix: None,
+            idents: HashMap::new(),
+            keep_self: false,
+            send: None,
+            recursive_asyncness_removal: true,
+            cfg: None,
+            outer_attrs: Punctuated::new(),
+            inner_attrs: Punctuated::new(),
+            drop_attrs: vec![],
+            replace_features: HashMap::new(),
+            versions: vec![],
+        }
     }
 
-    fn from_args<'i>(args: impl IntoIterator<Item = &'i NestedMeta>) -> syn::Result<Self> {
-        let mut builder = MacroParametersBuilder::new();
+    fn parse_root( builder: &mut MacroParametersBuilder, tokens: TokenStream ) -> syn::Result<()> {
+        let logic = syn::meta::parser(|param| {
+            Self::parse_root_param( builder, param )
+        });
 
-        for arg in args {
-            match arg {
-                syn::NestedMeta::Meta(meta) => match meta {
-                    syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
-                        let name = path
-                            .get_ident()
-                            .ok_or(syn::Error::new_spanned(
-                                path.to_token_stream(),
-                                "Expected name",
-                            ))?
-                            .to_string();
-                        match name.as_str() {
-                            "key" => lit_str!(lit, builder, key, "Expected string literal"),
-                            "self" => lit_str!(lit, builder, self_name, "Expected string literal"),
-                            "prefix" => lit_str!(lit, builder, prefix, "Expected string literal"),
-                            "send" => lit_str!(lit, builder, send, "Expected string literal"),
-                            "feature" => lit_meta!(lit, meta, builder, feature, "Expected string literal"),
-                            _ => {
-                                return Err(syn::Error::new_spanned(
-                                    meta.to_token_stream(),
-                                    format!("Wrong name for name-value pair: {}", &name),
-                                ))
-                            }
-                        }
-                    }
-                    syn::Meta::List(list) => {
-                        let name = list
-                            .path
-                            .get_ident()
-                            .ok_or(syn::Error::new_spanned(
-                                list.path.to_token_stream(),
-                                "Expected name",
-                            ))?
-                            .to_string();
-                        match name.as_str() {
-                            "cfg" => builder.cfg_list(list)?,
-                            "idents" => MacroParametersBuilder::idents(
-                                &mut builder.params.idents,
-                                &list.nested,
-                            )?,
-                            "any" | "all" | "not" => builder.cfg_meta(meta)?,
-                            "outer" => builder.outer_attrs(&list.nested)?,
-                            "inner" => builder.inner_attrs(&list.nested)?,
-                            "replace_feature" => builder.replace_feature(&list.nested)?,
-                            "drop_attrs" => builder.drop_attrs(&list.nested)?,
-                            name @ _ => builder.version_or_inner_attr(name, &list.nested, meta)?,
-                        }
-                    }
-                    syn::Meta::Path(path) => {
-                        if let Some(name) = path.get_ident().map(|i| i.to_string()) {
-                            match name.as_str() {
-                                MODE_INTO_ASYNC => builder.mode_into_async()?,
-                                MODE_INTO_SYNC => builder.mode_into_sync()?,
-                                "disable" => builder.disable(),
-                                "keep_self" => builder.keep_self(),
-                                _ => builder.inner_attr(meta)?,
-                            }
-                        } else {
-                            builder.inner_attr(meta)?    
-                        }
-                    }
-                },
-                syn::NestedMeta::Lit(lit) => {
-                    lit_meta!(lit, lit, builder, inner_attr_str, "Expected string literal")
-                }
+        parse_macro_input!(tokens with logic)?;
+
+        Ok(())
+    }
+
+    fn parse_root_param( builder: &mut MacroParametersBuilder, param: ParseNestedMeta ) -> syn::Result<()> {
+        let ident = param.path
+            .get_ident()
+            .ok_or_else(|| syn::Error::new_spanned(param.path, "Expected identifier"))?
+            .to_string();
+        let tokens = param.value()?;
+
+        match ident.as_str() {
+            "disable" => {
+                // disable
+                if !tokens.is_empty() {
+                    return Err(param.error("Disable should not have any parameters"));
+                };
+                builder.disable();
+            },
+            "prefix" => {
+                // key = "str"
+                let value: LitStr = tokens.parse()?;
+                builder.prefix(value.value())?;
+            },
+            "sync" => {
+                // sync( VERSION_PARAMETERS_LIST )
+                builder.version( ConvertMode::IntoSync, |version_builder| {
+                    Self::parse_variant( version_builder, param )
+                })?;
+            },
+            "async" => {
+                // async( VERSION_PARAMETERS_LIST )
+                builder.version( ConvertMode::IntoAsync, |version_builder| {
+                    Self::parse_variant( version_builder, param )
+                })?;
+            },
+            "idents" => {
+                param.parse_nested_meta(|meta| {
+                    Ok(())
+                })?;
+                MacroParametersBuilder::idents(
+                    &mut builder.params.idents,
+                    &list.nested,
+                )?
+            },
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &param.path,
+                    format!("Wrong name for name-value pair"),
+                ))
             }
         }
 
-        builder.build()
+        Ok(())
+    }
+
+    fn parse_variant( builder: &mut MacroParametersBuilder, parent: ParseNestedMeta ) -> syn::Result<()> {
+        parent.parse_nested_meta(|param| {
+            Self::parse_variant_param( builder, param )
+        })
+    }
+
+    fn parse_variant_param(builder: &mut MacroParametersBuilder, param: syn::meta::ParseNestedMeta) -> syn::Result<()> {
+        let ident = param.path
+            .get_ident()
+            .ok_or_else(|| syn::Error::new_spanned(param.path, "Expected identifier"))?
+            .to_string();
+
+        match ident.as_str() {
+            "key" => {
+                // key = "str"
+                let value: LitStr = param.value()?.parse()?;
+                builder.key(value.value())?;
+            },
+            "self" => {
+                // self = "str"
+                let value: LitStr = param.value()?.parse()?;
+                builder.self_name(value.value())?;
+            },
+            "prefix" => {
+                // prefix = "str"
+                let value: LitStr = param.value()?.parse()?;
+                builder.prefix(value.value())?;
+            },
+            "send" => {
+                // send = "str"
+                let value: LitStr = param.value()?.parse()?;
+                builder.send(value.value())?;
+            },
+            // "feature" => {
+            //     // key = "value"
+            //     let value: Meta = param.value()?.parse()?;
+            //     builder.feature(&value)?;
+            // },
+            "cfg" => {
+                // cfg()
+                let value: Meta = param.value()?.parse()?;
+                builder.cfg_meta(&value)?;
+            },
+            "idents" => {
+                param.parse_nested_meta(|meta| {
+                    Ok(())
+                })?;
+                MacroParametersBuilder::idents(
+                    &mut builder.params.idents,
+                    &list.nested,
+                )?
+            },
+            _ => {
+                return Err(syn::Error::new_spanned(
+                    &param.path,
+                    format!("Wrong name for name-value pair"),
+                ))
+            }
+        }
+
+        match param.path {
+            syn::NestedMeta::Meta(meta) => match meta {
+            //     syn::Meta::NameValue(syn::MetaNameValue { path, lit, .. }) => {
+            //         let name = path
+            //             .get_ident()
+            //             .ok_or(syn::Error::new_spanned(
+            //                 path.to_token_stream(),
+            //                 "Expected name",
+            //             ))?
+            //             .to_string();
+            //         match name.as_str() {
+            //             "key" => lit_str!(lit, builder, key, "Expected string literal"),
+            //             "self" => lit_str!(lit, builder, self_name, "Expected string literal"),
+            //             "prefix" => lit_str!(lit, builder, prefix, "Expected string literal"),
+            //             "send" => lit_str!(lit, builder, send, "Expected string literal"),
+            //             "feature" => lit_meta!(lit, meta, builder, feature, "Expected string literal"),
+            //             _ => {
+            //                 return Err(syn::Error::new_spanned(
+            //                     meta.to_token_stream(),
+            //                     format!("Wrong name for name-value pair: {}", &name),
+            //                 ))
+            //             }
+            //         }
+            //     }
+                syn::Meta::List(list) => {
+                    let name = list
+                        .path
+                        .get_ident()
+                        .ok_or(syn::Error::new_spanned(
+                            list.path.to_token_stream(),
+                            "Expected name",
+                        ))?
+                        .to_string();
+                    match name.as_str() {
+                        "cfg" => builder.cfg_list(list)?,
+                        "idents" => MacroParametersBuilder::idents(
+                            &mut builder.params.idents,
+                            &list.nested,
+                        )?,
+                        "any" | "all" | "not" => builder.cfg_meta(meta)?,
+                        "outer" => builder.outer_attrs(&list.nested)?,
+                        "inner" => builder.inner_attrs(&list.nested)?,
+                        "replace_feature" => builder.replace_feature(&list.nested)?,
+                        "drop_attrs" => builder.drop_attrs(&list.nested)?,
+                        name @ _ => builder.version_or_inner_attr(name, &list.nested, meta)?,
+                    }
+                }
+                syn::Meta::Path(path) => {
+                    if let Some(name) = path.get_ident().map(|i| i.to_string()) {
+                        match name.as_str() {
+                            MODE_INTO_ASYNC => builder.mode_into_async()?,
+                            MODE_INTO_SYNC => builder.mode_into_sync()?,
+                            "disable" => builder.disable(),
+                            "keep_self" => builder.keep_self(),
+                            _ => builder.inner_attr(meta)?,
+                        }
+                    } else {
+                        builder.inner_attr(meta)?    
+                    }
+                }
+            },
+            syn::NestedMeta::Lit(lit) => {
+                lit_meta!(lit, lit, builder, inner_attr_str, "Expected string literal")
+            }
+        }
+
+        Ok(())
     }
 
     pub fn from_tokens(tokens: TokenStream) -> syn::Result<Self> {
-        // let args = syn::meta::parser(tokens)?;
-        let logic =  syn::meta::parser(|_| Ok(()) );
-        syn::parse::Parser::parse(logic, tokens);
-        syn::parse_macro_input!(tokens with logic);
-        Self::from_args(&args)
+        let mut builder = MacroParametersBuilder::new();
+        Self::parse_root( &mut builder, tokens )?;
+        builder.build()
     }
 
     pub fn from_tokens_in_parens(tokens: TokenStream) -> syn::Result<Self> {
@@ -646,23 +776,13 @@ pub struct MacroParametersBuilder {
 impl MacroParametersBuilder {
     pub fn new() -> Self {
         Self {
-            params: MacroParameters {
-                mode: None,
-                disable: false,
-                key: None,
-                self_name: None, 
-                prefix: None,
-                idents: HashMap::new(),
-                keep_self: false,
-                send: None,
-                recursive_asyncness_removal: true,
-                cfg: None,
-                outer_attrs: Punctuated::new(),
-                inner_attrs: Punctuated::new(),
-                drop_attrs: vec![],
-                replace_features: HashMap::new(),
-                versions: vec![],
-            },
+            params: MacroParameters::new()
+        }
+    }
+
+    pub fn new_version() -> Self {
+        Self {
+            params: MacroParameters::new()
         }
     }
 
@@ -907,8 +1027,9 @@ impl MacroParametersBuilder {
     pub fn version(
         &mut self,
         kind: ConvertMode,
-        list: &Punctuated<NestedMeta, Comma>,
+        logic: impl FnMut(&mut MacroParametersBuilder) -> syn::Result<()>
     ) -> syn::Result<()> {
+        let builder = MacroParametersBuilder::new_version();
         let inner = MacroParameters::from_args(list)?;
         self.params.versions.push(MacroParameterVersion {
             kind,

@@ -7,11 +7,27 @@ use syn::{
     Expr,
     Ident,
     Meta,
-    NestedMeta,
     Token,
 };
 
 use quote::ToTokens;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/// syn::parse_macro_input
+macro_rules! parse_macro_input {
+    ($tokenstream:ident as $ty:ty) => {
+        ::syn::parse::<$ty>($tokenstream)
+    };
+    ($tokenstream:ident with $parser:path) => {
+        ::syn::parse::Parser::parse($parser, $tokenstream)
+    };
+    ($tokenstream:ident) => {
+        $crate::utils::parse_macro_input!($tokenstream as _)
+    };
+}
+
+pub(crate) use parse_macro_input;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
