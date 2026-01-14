@@ -6,8 +6,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{quote, ToTokens};
 use syn::{
-    punctuated::Punctuated, spanned::Spanned, token::Comma, Attribute, Ident, Lit,
-    LitStr, Meta, MetaNameValue, MetaList, meta::ParseNestedMeta, parse::ParseBuffer, parenthesized,
+    Attribute, Error, Ident, Lit, LitStr, Meta, MetaList, MetaNameValue, Path, meta::ParseNestedMeta, parenthesized, parse::ParseBuffer, punctuated::Punctuated, spanned::Spanned, token::Comma
 };
 
 use crate::{
@@ -52,29 +51,29 @@ pub struct IdentRecord {
     pub keep: bool,
     pub ident_sync: Option<String>,
     pub ident_async: Option<String>,
-    pub idents: Option<HashMap<String, String>>,
+    pub version_specific: Option<HashMap<String, String>>,
 }
 
 impl IdentRecord {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             snake_case: false,
             use_mode: false,
             keep: false,
             ident_sync: None,
             ident_async: None,
-            idents: None,
+            version_specific: None,
         }
     }
 
-    pub fn with_snake_case( snake_case: bool ) -> Self {
+    fn with_snake_case( snake_case: bool ) -> Self {
         Self {
             snake_case,
             use_mode: false,
             keep: false,
             ident_sync: None,
             ident_async: None,
-            idents: None,
+            version_specific: None,
         }
     }
 
@@ -84,7 +83,7 @@ impl IdentRecord {
         }
 
         if let Some(version_name) = version_name {
-            if let Some(idents) = self.idents.as_ref() {
+            if let Some(idents) = self.version_specific.as_ref() {
                 if let Some(value) = idents.get(version_name) {
                     return Ident::new(value, ident.span());
                 }
@@ -144,7 +143,7 @@ impl IdentRecord {
             }
         };
     
-        if let Some(idents) = &self.idents {
+        if let Some(idents) = &self.version_specific {
             for (key, value) in idents {
                 nested.push(make_nestedmeta_namevalue(key.as_str(), value.as_str()));
             }
@@ -155,7 +154,84 @@ impl IdentRecord {
         } else {
             make_nestedmeta_list(name, nested)
         }
-    }    
+    }
+
+    fn is_valid_ident( ident: &str ) -> bool {
+        if ident.is_empty() {
+            return false;
+        }
+
+        true
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+pub struct IdentBuilder {
+    ident: String,
+    ir: IdentRecord,
+}
+
+impl IdentBuilder {
+    fn new() -> Self {
+        Self { 
+            ident: String::new(), 
+            ir: IdentRecord::new(),
+        }
+    }
+
+    pub fn ident( &mut self, ident: String, span: Span ) -> syn::Result<()> {
+        if !IdentRecord::is_valid_ident(&ident) {
+            return Err(Error::new(span, "Invalid identifier"));
+        }
+
+        self.ident = ident;
+        Ok(())
+    }
+
+    pub fn keep( &mut self ) -> syn::Result<()> {
+        self.ir.keep = true;
+        Ok(())
+    }
+
+    pub fn use_mode( &mut self ) -> syn::Result<()> {
+        self.ir.use_mode = true;
+        Ok(())
+    }
+
+    pub fn snake_case( &mut self ) -> syn::Result<()> {
+        self.ir.snake_case = true;
+        Ok(())
+    }
+
+    pub fn ident_sync( &mut self, value: String ) -> syn::Result<()> {
+        self.ir.ident_sync = Some(value);
+        Ok(())
+    }
+
+    pub fn ident_async( &mut self, value: String ) -> syn::Result<()> {
+        self.ir.ident_sync = Some(value);
+        Ok(())
+    }
+
+    pub fn version_specific( &mut self, version_name: String, value: String ) -> syn::Result<()> {
+        let version_specific = self.ir.version_specific.get_or_insert_default();
+        
+        let prev = version_specific.insert(version_name, value);
+        if prev.is_some() {
+            return 
+        }
+
+        Ok(())
+    }
+
+    fn build( self ) -> syn::Result<(String, IdentRecord)> {
+        if self.ident.is_empty() {
+            return Err(Error::new(Span::call_site(), "Invalid identifier"));
+        }
+
+        Ok((self.ident, self.ir))
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -254,7 +330,7 @@ impl MacroParameters {
 
     fn parse_root( builder: &mut MacroParametersBuilder, tokens: TokenStream ) -> syn::Result<()> {
         let logic = syn::meta::parser(|param| {
-            Self::parse_root_param( builder, param )
+            Self::parse_root_param( builder, &param )
         });
 
         parse_macro_input!(tokens with logic)?;
@@ -262,11 +338,12 @@ impl MacroParameters {
         Ok(())
     }
 
-    fn parse_root_param( builder: &mut MacroParametersBuilder, param: ParseNestedMeta ) -> syn::Result<()> {
+    fn parse_root_param( builder: &mut MacroParametersBuilder, param: &ParseNestedMeta ) -> syn::Result<()> {
         let ident = param.path
             .get_ident()
-            .ok_or_else(|| syn::Error::new_spanned(param.path, "Expected identifier"))?
+            .ok_or_else(|| syn::Error::new_spanned(&param.path, "Expected identifier"))?
             .to_string();
+
         let tokens = param.value()?;
 
         match ident.as_str() {
@@ -285,23 +362,20 @@ impl MacroParameters {
             "sync" => {
                 // sync( VERSION_PARAMETERS_LIST )
                 builder.version( ConvertMode::IntoSync, |version_builder| {
-                    Self::parse_variant( version_builder, param )
+                    Self::parse_version( version_builder, param )
                 })?;
             },
             "async" => {
                 // async( VERSION_PARAMETERS_LIST )
                 builder.version( ConvertMode::IntoAsync, |version_builder| {
-                    Self::parse_variant( version_builder, param )
+                    Self::parse_version( version_builder, param )
                 })?;
             },
             "idents" => {
-                param.parse_nested_meta(|meta| {
-                    Ok(())
+                // idents( IDENTS_LIST )
+                builder.idents_list(|builder| {
+                    Self::parse_idents_list(builder, param)
                 })?;
-                MacroParametersBuilder::idents(
-                    &mut builder.params.idents,
-                    &list.nested,
-                )?
             },
             _ => {
                 return Err(syn::Error::new_spanned(
@@ -314,17 +388,124 @@ impl MacroParameters {
         Ok(())
     }
 
-    fn parse_variant( builder: &mut MacroParametersBuilder, parent: ParseNestedMeta ) -> syn::Result<()> {
-        parent.parse_nested_meta(|param| {
-            Self::parse_variant_param( builder, param )
+    fn parse_idents_list( builder: &mut MacroParametersBuilder, parent: &ParseNestedMeta ) -> syn::Result<()> {
+        // ( IDENT, IDENT, ... )
+        parent.parse_nested_meta(|meta| {
+            builder.ident(|ident_builder| {
+                Self::parse_ident( ident_builder, &meta )
+            }) 
         })
     }
 
-    fn parse_variant_param(builder: &mut MacroParametersBuilder, param: syn::meta::ParseNestedMeta) -> syn::Result<()> {
+    fn parse_ident(builder: &mut IdentBuilder, meta: &ParseNestedMeta) -> syn::Result<()> {
+        let tokens = meta.input;
+
+        if tokens.peek(LitStr) {
+            // "ident"
+            let value: LitStr = tokens.parse()?;
+            builder.ident( value.value(), value.span() )?;
+            return Ok(());
+        }
+
+        let meta: Meta = tokens.parse()?;
+        match &meta {
+            Meta::Path(path) => {
+                // ident
+                let ident = path.require_ident()?;
+                builder.ident( ident.to_string(), ident.span() )?;
+            },
+            Meta::List(list) => {
+                // ident( ... )
+                let ident = list.path.require_ident()?;
+                builder.ident( ident.to_string(), ident.span() )?;
+
+                Self::parse_ident_parameters_list(builder, list)?;
+            },
+            Meta::NameValue(_) => {
+                // ident = ...
+                return Err(Error::new_spanned(meta, "Name-Value pairs not allowed"))
+
+            },
+        }
+
+        Ok(())
+    }
+
+    fn parse_ident_parameters_list(builder: &mut IdentBuilder, parent: &MetaList) -> syn::Result<()> {
+        parent.parse_nested_meta(|param| {
+            Self::parse_ident_parameter( builder, &param )
+        })?;
+        Ok(())
+    }
+
+    fn parse_ident_parameter(builder: &mut IdentBuilder, param: &ParseNestedMeta) -> syn::Result<()> {
+        let parameter_name = param.path
+            .get_ident()
+            .ok_or_else(|| syn::Error::new_spanned(&param.path, "Expected identifier"))?
+            .to_string();
+
+        match parameter_name.as_str() {
+            "keep" => {
+                builder.keep()?;
+            },
+            "use" => {
+                builder.use_mode()?;
+            },
+            "snake" | "fn" | "mod" => {
+                builder.snake_case()?;
+            },
+            "sync" => {
+                builder.snake_case()?;
+            }
+            "async" => {
+                let value = param.value()?;
+                builder.snake_case()?;
+            }
+            _ => {
+                return Err(Error::new_spanned(&param.path, "Unknown ident parameter name. Allowed names: keep, use, snake, fn, mod, sync, async."));
+            }
+        }
+
+                                match iname.as_str() {
+                                    "snake" | "fn" | "mod" => {
+                                        ir.snake_case = true;
+                                    }
+                                    "use" => {
+                                        ir.use_mode = true;
+                                    }
+                                    "keep" => {
+                                        ir.keep = true;
+                                    }
+                                    "sync" => {
+                                        ir.ident_sync = Some(ident.clone());
+                                    }
+                                    "async" => {
+                                        ir.ident_async = Some(ident.clone());
+                                    }
+                                    _ => {
+                                        return Err(syn::Error::new_spanned(
+                                            nm.to_token_stream(),
+                                            "Expected snake, fn, mod, use, keep, sync, async",
+                                        ))
+                                    }
+                                }        
+
+        Ok(())
+    }
+
+    fn parse_version( builder: &mut MacroParametersBuilder, parent: &ParseNestedMeta ) -> syn::Result<()> {
+        parent.parse_nested_meta(|param| {
+            Self::parse_version_param( builder, param )
+        })
+    }
+
+    fn parse_version_param(builder: &mut MacroParametersBuilder, param: ParseNestedMeta) -> syn::Result<()> {
         let ident = param.path
             .get_ident()
             .ok_or_else(|| syn::Error::new_spanned(param.path, "Expected identifier"))?
             .to_string();
+
+        let tokens = param.value()?;
 
         match ident.as_str() {
             "key" => {
@@ -361,7 +542,7 @@ impl MacroParameters {
                 param.parse_nested_meta(|meta| {
                     Ok(())
                 })?;
-                MacroParametersBuilder::idents(
+                MacroParametersBuilder::idents_list(
                     &mut builder.params.idents,
                     &list.nested,
                 )?
@@ -409,7 +590,7 @@ impl MacroParameters {
                         .to_string();
                     match name.as_str() {
                         "cfg" => builder.cfg_list(list)?,
-                        "idents" => MacroParametersBuilder::idents(
+                        "idents" => MacroParametersBuilder::idents_list(
                             &mut builder.params.idents,
                             &list.nested,
                         )?,
@@ -666,7 +847,7 @@ impl MacroParameters {
                     if let Some(self_name) = &self.self_name {
                         let mut idents = HashMap::new();
                         idents.insert( key.clone(), self_name.clone() );
-                        ir.idents = Some(idents);
+                        ir.version_specific = Some(idents);
                     }
                 }
     
@@ -819,7 +1000,7 @@ impl MacroParametersBuilder {
         Ok(())
     }
 
-    pub fn idents(
+    pub fn idents_(
         idents: &mut HashMap<String, IdentRecord>,
         list: &Punctuated<NestedMeta, Comma>,
     ) -> syn::Result<()> {
@@ -900,7 +1081,7 @@ impl MacroParametersBuilder {
                                         ir.ident_async = Some(ivalue);
                                     }
                                     _ => {
-                                        let idents = ir.idents.get_or_insert_with(|| HashMap::new());
+                                        let idents = ir.version_specific.get_or_insert_with(|| HashMap::new());
                                         idents.insert(iname, ivalue);
                                     }
                                 }
@@ -1027,15 +1208,43 @@ impl MacroParametersBuilder {
     pub fn version(
         &mut self,
         kind: ConvertMode,
-        logic: impl FnMut(&mut MacroParametersBuilder) -> syn::Result<()>
+        mut logic: impl FnMut(&mut MacroParametersBuilder) -> syn::Result<()>
     ) -> syn::Result<()> {
-        let builder = MacroParametersBuilder::new_version();
-        let inner = MacroParameters::from_args(list)?;
+        let mut version_builder = MacroParametersBuilder::new_version();
+
+        logic(&mut version_builder)?;
+
         self.params.versions.push(MacroParameterVersion {
             kind,
-            params: inner,
+            params: version_builder.build()?,
         });
+
         Ok(())
+    }
+
+    pub fn ident( 
+        &mut self, 
+        mut logic: impl FnMut(&mut IdentBuilder) -> syn::Result<()>
+    ) -> syn::Result<()> {
+        let mut builder = IdentBuilder::new();
+
+        logic(&mut builder)?;
+
+        let (ident, ir) = builder.build()?;
+
+        let prev = self.params.idents.insert(ident, ir);
+        if prev.is_some() {
+            return Err(Error::new(Span::call_site(), "Duplicate identifier"));
+        }
+
+        Ok(())
+    }
+
+    pub fn idents_list( 
+        &mut self, 
+        mut logic: impl FnMut(&mut Self) -> syn::Result<()>
+    ) -> syn::Result<()> {
+        logic(self)
     }
 
     pub fn drop_attrs(&mut self, meta: &Punctuated<NestedMeta, Comma>) -> syn::Result<()> {
