@@ -230,6 +230,7 @@
 use manyhow::manyhow;
 use proc_macro::TokenStream;
 
+mod meta2;
 mod macros;
 mod params;
 mod utils;
