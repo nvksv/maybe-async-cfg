@@ -347,6 +347,11 @@ impl MacroParameters {
                 let _ = param.require_path("\"disable\" should not have any parameters")?;
                 builder.disable();
             },
+            "keep_self" => {
+                // keep_self
+                let _ = param.require_path("\"keep_self\" should not have any parameters")?;
+                builder.keep_self();
+            },
             "prefix" => {
                 // key = "str"
                 let message = "Expected prefix = \"...\"";
@@ -453,12 +458,12 @@ impl MacroParameters {
                 builder.snake_case()?;
             },
             "sync" => {
-                let (value, span) = param.get_any_string_value()
+                let (value, _span) = param.get_any_string_value()
                     .ok_or_else(|| Error::new(param.span(), "Expected sync = ident, sync = \"ident\", sync(ident) or sync(\"ident\")"))?;
                 builder.ident_sync(value)?;
             }
             "async" => {
-                let (value, span) = param.get_any_string_value()
+                let (value, _span) = param.get_any_string_value()
                     .ok_or_else(|| Error::new(param.span(), "Expected async = ident, async = \"ident\", async(ident) or async(\"ident\")"))?;
                 builder.ident_async(value)?;
             }
@@ -482,11 +487,27 @@ impl MacroParameters {
             .to_string();
 
         match ident.as_str() {
+            "disable" => {
+                // disable
+                let _ = param.require_path("\"disable\" should not have any parameters")?;
+                builder.disable();
+            },
+            "keep_self" => {
+                // keep_self
+                let _ = param.require_path("\"keep_self\" should not have any parameters")?;
+                builder.keep_self();
+            },
             "key" => {
                 // key = "str"
                 let message = "Expected key = \"...\"";
                 let value = param.require_name_value_lit_str(message, message, message)?;
                 builder.key(value.value())?;
+            },
+            "feature" => {
+                // feature = "value"
+                let message = "Expected feature = \"...\"";
+                let value = param.require_name_value_lit_str(message, message, message)?;
+                builder.feature(value)?;
             },
             "self" => {
                 // self = "str"
@@ -506,11 +527,6 @@ impl MacroParameters {
                 let value = param.require_name_value_lit_str(message, message, message)?;
                 builder.send(value.value())?;
             },
-            // "feature" => {
-            //     // key = "value"
-            //     let value: Meta = param.value()?.parse()?;
-            //     builder.feature(&value)?;
-            // },
             "cfg" => {
                 // cfg()
                 let value: Meta = param.value()?.parse()?;
@@ -1102,36 +1118,36 @@ impl MacroParametersBuilder {
         self.cfg_meta(meta)
     }
 
-    pub fn cfg_list(&mut self, list: &MetaList) -> syn::Result<()> {
-        match list.nested.len() {
-            0 => {
-                return Err(syn::Error::new_spanned(
-                    list.to_token_stream(),
-                    "Expected condition",
-                ))
-            }
-            1 => {
-                let first = list.nested.first().unwrap();
-                match first {
-                    NestedMeta::Meta(first_meta) => self.cfg_meta(first_meta)?,
-                    _ => {
-                        return Err(syn::Error::new_spanned(
-                            list.to_token_stream(),
-                            "Expected condition",
-                        ))
-                    }
-                }
-            }
-            _ => {
-                return Err(syn::Error::new_spanned(
-                    list.to_token_stream(),
-                    "Expected condition",
-                ))
-            }
-        };
+    // pub fn cfg_list(&mut self, list: &MetaList) -> syn::Result<()> {
+    //     match list.nested.len() {
+    //         0 => {
+    //             return Err(syn::Error::new_spanned(
+    //                 list.to_token_stream(),
+    //                 "Expected condition",
+    //             ))
+    //         }
+    //         1 => {
+    //             let first = list.nested.first().unwrap();
+    //             match first {
+    //                 NestedMeta::Meta(first_meta) => self.cfg_meta(first_meta)?,
+    //                 _ => {
+    //                     return Err(syn::Error::new_spanned(
+    //                         list.to_token_stream(),
+    //                         "Expected condition",
+    //                     ))
+    //                 }
+    //             }
+    //         }
+    //         _ => {
+    //             return Err(syn::Error::new_spanned(
+    //                 list.to_token_stream(),
+    //                 "Expected condition",
+    //             ))
+    //         }
+    //     };
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn cfg_meta(&mut self, meta: &Meta) -> syn::Result<()> {
         self.params.cfg = Some(meta.clone());

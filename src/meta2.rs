@@ -4,7 +4,7 @@ use syn::{Error, spanned::Spanned};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ListOfMeta {
     inner: syn::punctuated::Punctuated::<Meta, syn::Token![,]>,
 }
@@ -91,7 +91,7 @@ impl<'s> Iterator for ListOfMetaRefIterator<'s> {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MetaList {
     inner: syn::MetaList,
 }
@@ -131,6 +131,7 @@ impl MetaList {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#[derive(Debug, Clone)]
 pub enum IdentOrLitStrRef<'r> {
     Ident(&'r syn::Ident),
     LitStr(&'r syn::LitStr),
@@ -139,7 +140,7 @@ pub enum IdentOrLitStrRef<'r> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Meta {
     Path(syn::Path),
     List(MetaList),
@@ -271,6 +272,40 @@ impl Meta {
             // Self::Empty => None,
         }
     }
+
+    // pub fn get_meta_value( &self ) -> Option<Meta> {
+    //     match self {
+    //         Self::Path(_) => {
+    //             None
+    //         },
+    //         Self::List(list) => {
+    //             let inner_list = list.parse_as_list_of_meta().ok()?;
+    //             let inner_meta = inner_list.only_one()?;
+    //             Some(inner_meta.clone())
+    //         },
+    //         Self::NameValue(name_value) => {
+    //             syn::Meta&name_value.value {
+    //                 syn::Expr::Lit(syn::ExprLit{lit: syn::Lit::Str(lit_str), ..}) => {
+    //                     Some((lit_str.value(), lit_str.span()))
+    //                 },
+    //                 _ => {
+    //                     None
+    //                 },
+    //             }
+    //         },
+    //         Self::Lit(lit) => {
+    //             match lit {
+    //                 syn::Lit::Str(lit_str) => {
+    //                     Some((lit_str.value(), lit_str.span()))
+    //                 },
+    //                 _ => {
+    //                     None
+    //                 },
+    //             }
+    //         },
+    //         // Self::Empty => None,
+    //     }
+    // }
 
     pub fn require_ident_or_lit_str( &self, error_message: &str ) -> syn::Result<IdentOrLitStrRef<'_>> {
         self.get_ident_or_lit_str_ref()
