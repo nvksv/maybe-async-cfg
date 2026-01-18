@@ -1,31 +1,35 @@
 use proc_macro::{TokenStream};
-use proc_macro2::{Span};
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use syn::{Error, spanned::Spanned};
+use core::marker::PhantomData;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Debug, Clone)]
-pub struct ListOfMeta {
-    inner: syn::punctuated::Punctuated::<Meta, syn::Token![,]>,
+pub struct ListOfMeta<Delim: syn::token::Token + syn::parse::Parse> {
+    inner: syn::punctuated::Punctuated::<Meta, Delim>,
 }
 
-impl syn::parse::Parse for ListOfMeta {
+impl<Delim: syn::token::Token + syn::parse::Parse> syn::parse::Parse for ListOfMeta<Delim> {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let inner = syn::punctuated::Punctuated::<MetaWithDelim<Delim>, Delim>::parse_terminated(input)?;
+        inner.
+
         Ok(Self { 
-            inner: syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated(input)?,
+            ,
         })
     }
 }
 
-impl From<syn::punctuated::Punctuated::<Meta, syn::Token![,]>> for ListOfMeta {
-    fn from(inner: syn::punctuated::Punctuated::<Meta, syn::Token![,]>) -> Self {
+impl<Delim: syn::token::Token + syn::parse::Parse> From<syn::punctuated::Punctuated::<Meta, Delim>> for ListOfMeta<Delim> {
+    fn from(inner: syn::punctuated::Punctuated::<Meta, Delim>) -> Self {
         Self {
             inner
         }
     }
 }
 
-impl ListOfMeta {
+impl<Delim: syn::token::Token + syn::parse::Parse> ListOfMeta<Delim> {
     pub fn len( &self ) -> usize {
         self.inner.len()
     }
@@ -41,12 +45,12 @@ impl ListOfMeta {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct ListOfMetaIterator {
-    inner: <syn::punctuated::Punctuated::<Meta, syn::Token![,]> as IntoIterator>::IntoIter,
+pub struct ListOfMetaIterator<Delim: syn::token::Token + syn::parse::Parse> {
+    inner: <syn::punctuated::Punctuated::<Meta, Delim> as IntoIterator>::IntoIter,
 }
 
-impl IntoIterator for ListOfMeta {
-    type IntoIter = ListOfMetaIterator;
+impl<Delim: syn::token::Token + syn::parse::Parse> IntoIterator for ListOfMeta<Delim> {
+    type IntoIter = ListOfMetaIterator<Delim>;
     type Item = Meta;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -56,7 +60,7 @@ impl IntoIterator for ListOfMeta {
     }
 }
 
-impl Iterator for ListOfMetaIterator {
+impl<Delim: syn::token::Token + syn::parse::Parse> Iterator for ListOfMetaIterator<Delim> {
     type Item = Meta;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -67,12 +71,12 @@ impl Iterator for ListOfMetaIterator {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-pub struct ListOfMetaRefIterator<'s> {
-    inner: <&'s syn::punctuated::Punctuated::<Meta, syn::Token![,]> as IntoIterator>::IntoIter,
+pub struct ListOfMetaRefIterator<'s, Delim: syn::token::Token + syn::parse::Parse> {
+    inner: <&'s syn::punctuated::Punctuated::<Meta, Delim> as IntoIterator>::IntoIter,
 }
 
-impl<'i> IntoIterator for &'i ListOfMeta {
-    type IntoIter = <&'i syn::punctuated::Punctuated::<Meta, syn::Token![,]> as IntoIterator>::IntoIter;
+impl<'i, Delim: syn::token::Token + syn::parse::Parse> IntoIterator for &'i ListOfMeta<Delim> {
+    type IntoIter = <&'i syn::punctuated::Punctuated::<Meta, Delim> as IntoIterator>::IntoIter;
     type Item = &'i Meta;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -80,13 +84,32 @@ impl<'i> IntoIterator for &'i ListOfMeta {
     }
 }
 
-impl<'s> Iterator for ListOfMetaRefIterator<'s> {
+impl<'s, Delim: syn::token::Token + syn::parse::Parse> Iterator for ListOfMetaRefIterator<'s, Delim> {
     type Item = &'s Meta;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
 
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+#[derive(Debug, Clone)]
+pub struct MetaWithDelim<Delim: syn::token::Token + syn::parse::Parse> {
+    pub(crate) inner: Meta,
+    _ph: PhantomData<Delim>,
+}
+
+impl<Delim: syn::token::Token + syn::parse::Parse> syn::parse::Parse for MetaWithDelim<Delim> {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let inner = syn::punctuated::Punctuated::<MetaWithDelim<Delim>, Delim>::parse_terminated(input)?;
+
+        Ok(Self { 
+            ,
+        })
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -105,10 +128,10 @@ impl From<syn::MetaList> for MetaList {
 }
 
 impl MetaList {
-    pub fn parse_as_list_of_meta( &self ) -> syn::Result<ListOfMeta> {
+    pub fn parse_as_list_of_meta<Delim: syn::token::Token + syn::parse::Parse>( &self ) -> syn::Result<ListOfMeta<Delim>> {
         Ok(
             self.inner
-                .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)?
+                .parse_args_with(syn::punctuated::Punctuated::<Meta, Delim>::parse_terminated)?
                 .into()
         )
     }
@@ -127,7 +150,14 @@ impl MetaList {
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#[derive(Debug, Clone)]
+pub struct MetaNameValue {
+    pub path: syn::Path,
+    pub eq_token: syn::Token![=],
+    pub value: TokenStream,
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -144,7 +174,7 @@ pub enum IdentOrLitStrRef<'r> {
 pub enum Meta {
     Path(syn::Path),
     List(MetaList),
-    NameValue(syn::MetaNameValue),
+    NameValue(MetaNameValue),
     Lit(syn::Lit),
     // LitValue(LitWithValue),
     // Empty,
@@ -162,14 +192,20 @@ impl From<syn::Meta> for Meta {
 
 impl syn::parse::Parse for Meta {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        // if  input.is_empty() {
-        //     return Ok(Self::Empty);
-        // }
+        if  input.is_empty() {
+            return Err(syn::Error::new(input.span(), "Unexpected end of token stream"));
+        }
 
         if input.peek(syn::Lit) {
             let value = input.parse::<syn::Lit>()?;
             return Ok(Self::Lit(value));
         }
+
+        let path: syn::Path = input.parse()?;
+
+        let cursor_after_path = input.cursor();
+        if Some() = cursor_after_path.any_group()
+
 
         let value = input.parse::<syn::Meta>()?.into();
         Ok(value)
